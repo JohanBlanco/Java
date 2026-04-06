@@ -58,6 +58,7 @@ logs/
 *.tmp
 *.swp
 *~
+*.txt
 
 ### Node (if you ever add frontend) ###
 node_modules/
