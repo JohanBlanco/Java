@@ -2,9 +2,12 @@ package rewards;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
 
 import javax.sql.DataSource;
+
+import config.RewardsConfig;
 
 /**
  * TODO-06: Study this configuration class used for testing
@@ -20,7 +23,7 @@ import javax.sql.DataSource;
  * - Now the test code should have access to all the beans defined in
  *   the RewardsConfig configuration class
  *
- * TODO-08: Create a new JUnit 5 test class
+ * TODO-08: Create a new JUnit 5 test class CONTINUE HERE.....
  * - Call it RewardNetworkTests
  * - Create it in the same package this configuration class is located.
  * - Ask for a setUp() method to be generated within your IDE.
@@ -53,6 +56,7 @@ import javax.sql.DataSource;
  *
  */
 @Configuration
+@Import(RewardsConfig.class)
 public class TestInfrastructureConfig {
 
 	/**
