@@ -2,6 +2,7 @@ package rewards;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
 
 import javax.sql.DataSource;
@@ -17,6 +18,7 @@ public class TestInfrastructureLocalConfig {
 	 * with test data for fast testing
 	 */
 	@Bean
+	@Profile({"local", "jdbc"})
 	public DataSource dataSource(){
 		return
 			(new EmbeddedDatabaseBuilder())

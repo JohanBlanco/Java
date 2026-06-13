@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @SpringJUnitConfig(classes=TestInfrastructureConfig.class)
 
 // Uncomment the profile you wish to use
-@ActiveProfiles("stub")
+@ActiveProfiles("jdbc")
 //@ActiveProfiles({ "local", "jdbc" })
 //@ActiveProfiles({ "jndi", "jdbc" })
 public class RewardNetworkTests {
