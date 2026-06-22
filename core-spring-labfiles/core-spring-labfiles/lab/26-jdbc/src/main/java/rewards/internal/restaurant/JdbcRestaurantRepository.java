@@ -2,6 +2,7 @@ package rewards.internal.restaurant;
 
 import common.money.Percentage;
 import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import rewards.Dining;
 import rewards.internal.account.Account;
 
@@ -39,25 +40,30 @@ import java.sql.SQLException;
 public class JdbcRestaurantRepository implements RestaurantRepository {
 
 	private DataSource dataSource;
+	private JdbcTemplate jdbcTemplate;
 
-	public JdbcRestaurantRepository(DataSource dataSource) {
+	public JdbcRestaurantRepository(
+			DataSource dataSource) {
 		this.dataSource = dataSource;
+		this.jdbcTemplate = new JdbcTemplate(dataSource);
 	}
 
 	public Restaurant findByMerchantNumber(String merchantNumber) {
 		String sql = "select MERCHANT_NUMBER, NAME, BENEFIT_PERCENTAGE, BENEFIT_AVAILABILITY_POLICY"
 				+ " from T_RESTAURANT where MERCHANT_NUMBER = ?";
-		Restaurant restaurant = null;
+		Restaurant restaurant = jdbcTemplate.queryForObject(sql,
+				(rs,rowNum) -> mapRestaurant(rs),
+				merchantNumber);
 
-		try (Connection conn = dataSource.getConnection();
-			 PreparedStatement ps = conn.prepareStatement(sql) ){
-			ps.setString(1, merchantNumber);
-			ResultSet rs = ps.executeQuery();
-			advanceToNextRow(rs);
-			restaurant = mapRestaurant(rs);
-		} catch (SQLException e) {
-			throw new RuntimeException("SQL exception occurred finding by merchant number", e);
-		}
+//		try (Connection conn = dataSource.getConnection();
+//			 PreparedStatement ps = conn.prepareStatement(sql) ){
+//			ps.setString(1, merchantNumber);
+//			ResultSet rs = ps.executeQuery();
+//			advanceToNextRow(rs);
+//			restaurant = mapRestaurant(rs);
+//		} catch (SQLException e) {
+//			throw new RuntimeException("SQL exception occurred finding by merchant number", e);
+//		}
 
 		return restaurant;
 	}
