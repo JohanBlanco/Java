@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
 
 @Configuration
-@Profile("local")
+@Profile({"local","jdbc"})
 public class TestInfrastructureLocalConfig {
 
 	/**
