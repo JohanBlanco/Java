@@ -2,7 +2,12 @@ package rewards;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Bean;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 // TODO-00 : In this lab, you are going to exercise the following:
 // - Understanding how auto-configuration is triggered in Spring Boot application
@@ -18,7 +23,8 @@ import org.springframework.boot.SpringApplication;
 
 // TODO-03 : Turn this 'RewardsApplication' into a Spring Boot application
 // - Add an appropriate annotation to this class
-
+@SpringBootApplication
+@EnableConfigurationProperties(RewardsRecipientProperties.class)
 // --------------------------------------------
 
 // TODO-11 (Optional) : Disable 'DataSource' auto-configuration
@@ -56,6 +62,19 @@ public class RewardsApplication {
     // - Use the JdbcTemplate bean that Spring Boot auto-configured for you
     // - Run this application and verify "Hello, there are 21 accounts" log message
     //   gets displayed in the console
+    @Bean
+    CommandLineRunner commandLineRunner(JdbcTemplate jdbcTemplate){
+        // Use Lambda expression to display the result
+        Long numberOfAccounts = jdbcTemplate.queryForObject(SQL, Long.class);
+        logger.info("There are {} accounts", numberOfAccounts);
+        return args -> System.out.println("Hello, there are " + numberOfAccounts + " accounts");
+    }
+
+    @Bean
+    CommandLineRunner commandLineRunner2(RewardsRecipientProperties rewardsRecipientProperties) {
+        return args -> System.out.println("Recipient: " + rewardsRecipientProperties.getName());
+    }
+
 
     // TODO-07 (Optional): Enable full debugging in order to observe how Spring Boot
     //           performs its auto-configuration logic

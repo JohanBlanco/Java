@@ -27,15 +27,29 @@
              dependencies to JDBC and Test Spring Boot Starters -->
 
         <!-- Needed for the Spring JdbcTemplate -->
+<!--        <dependency>-->
+<!--            <groupId>org.springframework</groupId>-->
+<!--            <artifactId>spring-jdbc</artifactId>-->
+<!--        </dependency>-->
+        <!-- Source: https://mvnrepository.com/artifact/org.springframework.boot/spring-boot-starter-jdbc -->
         <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-jdbc</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+            <version>4.1.0</version>
+            <scope>compile</scope>
         </dependency>
 
-        <!-- Spring Integration testing support -->
+<!--        &lt;!&ndash; Spring Integration testing support &ndash;&gt;-->
+<!--        <dependency>-->
+<!--            <groupId>org.springframework</groupId>-->
+<!--            <artifactId>spring-test</artifactId>-->
+<!--            <scope>test</scope>-->
+<!--        </dependency>-->
+        <!-- Source: https://mvnrepository.com/artifact/org.springframework.boot/spring-boot-starter-test -->
         <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-test</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <version>4.1.0</version>
             <scope>test</scope>
         </dependency>
 
@@ -57,6 +71,10 @@
          <plugins>
             <!-- TO-DO-01 : Add the Spring Boot Plugin - see detailed instructions
                 for the XML you need. -->
+             <plugin>
+                 <groupId>org.springframework.boot</groupId>
+                 <artifactId>spring-boot-maven-plugin</artifactId>
+             </plugin>
 
             <!-- Ensure resources are handled correctly -->
             <plugin>
@@ -65,4 +83,6 @@
             </plugin>
         </plugins>
     </build>
+
+
 </project>
