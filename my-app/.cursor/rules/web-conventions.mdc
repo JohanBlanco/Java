@@ -1,0 +1,25 @@
+---
+description: Convenciones React/TypeScript para el panel web
+globs: web/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Web conventions
+
+- API centralizada en `src/api.ts`, tipos en `src/types.ts`
+- Auth vía `src/auth.tsx` (Context + localStorage token)
+- Páginas en `src/pages/`, estilos globales en `src/index.css`
+- Proxy dev: Vite redirige `/api` → `localhost:8080`
+
+## Al agregar pantalla
+
+1. Crear página en `src/pages/`
+2. Registrar ruta en `src/App.tsx`
+3. Agregar método en `api.ts` si consume endpoint nuevo
+4. Documentar flujo de prueba en `docs/wiki/Testing-Guide.md`
+
+## Roles en UI
+
+- `PLATFORM_OWNER` → `/platform`
+- `GYM_OWNER` → `/admin` + dashboard
+- `INSTRUCTOR` / `MEMBER` → dashboard según permisos
