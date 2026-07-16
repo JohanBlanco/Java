@@ -10,6 +10,7 @@ import com.gymplatform.repository.MembershipPackageRepository;
 import com.gymplatform.repository.OrganizationRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.math.BigDecimal;
 import java.util.List;
 
 @Service
@@ -36,6 +37,13 @@ public class MembershipPackageService {
         pkg.setDurationMonths(request.durationMonths());
         pkg.setFreeActivityQuota(request.freeActivityQuota());
         pkg.setOrganization(org);
+        boolean applyIva = com.gymplatform.util.PriceAddonUtils.resolveApplyIva(request.applyIva(), request.priceAddons());
+        BigDecimal ivaPercent = applyIva
+                ? com.gymplatform.util.PriceAddonUtils.resolveIvaPercent(request.ivaPercent(), request.priceAddons())
+                : null;
+        com.gymplatform.util.PriceAddonUtils.validateIva(applyIva, ivaPercent);
+        pkg.setApplyIva(applyIva);
+        pkg.setIvaPercent(ivaPercent);
 
         if (request.addons() != null) {
             for (PackageAddonRequest addonReq : request.addons()) {
@@ -51,11 +59,13 @@ public class MembershipPackageService {
         return toResponse(packageRepository.save(pkg));
     }
 
+    @Transactional(readOnly = true)
     public List<MembershipPackageResponse> findByOrganization(Long organizationId) {
         return packageRepository.findByOrganizationIdAndActiveTrue(organizationId)
                 .stream().map(this::toResponse).toList();
     }
 
+    @Transactional(readOnly = true)
     public MembershipPackageResponse findById(Long organizationId, Long id) {
         return toResponse(requirePackage(organizationId, id));
     }
@@ -68,6 +78,13 @@ public class MembershipPackageService {
         pkg.setPrice(request.price());
         pkg.setDurationMonths(request.durationMonths());
         pkg.setFreeActivityQuota(request.freeActivityQuota());
+        boolean applyIva = com.gymplatform.util.PriceAddonUtils.resolveApplyIva(request.applyIva(), request.priceAddons());
+        BigDecimal ivaPercent = applyIva
+                ? com.gymplatform.util.PriceAddonUtils.resolveIvaPercent(request.ivaPercent(), request.priceAddons())
+                : null;
+        com.gymplatform.util.PriceAddonUtils.validateIva(applyIva, ivaPercent);
+        pkg.setApplyIva(applyIva);
+        pkg.setIvaPercent(ivaPercent);
 
         pkg.getAddons().clear();
         if (request.addons() != null) {
@@ -99,7 +116,11 @@ public class MembershipPackageService {
                 .toList();
         return new MembershipPackageResponse(
                 pkg.getId(), pkg.getName(), pkg.getDescription(), pkg.getPrice(),
-                pkg.getDurationMonths(), pkg.getFreeActivityQuota(), pkg.isActive(), pkg.getCreatedAt(), addons
+                pkg.getDurationMonths(), pkg.getFreeActivityQuota(), pkg.isActive(), pkg.getCreatedAt(), addons,
+                pkg.isApplyIva(),
+                pkg.getIvaPercent(),
+                com.gymplatform.util.PriceAddonUtils.toResponses(pkg.isApplyIva(), pkg.getIvaPercent()),
+                com.gymplatform.util.PriceAddonUtils.applyIva(pkg.getPrice(), pkg.isApplyIva(), pkg.getIvaPercent())
         );
     }
 }

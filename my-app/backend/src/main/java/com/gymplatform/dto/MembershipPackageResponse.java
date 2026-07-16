@@ -13,5 +13,9 @@ public record MembershipPackageResponse(
         Integer freeActivityQuota,
         boolean active,
         Instant createdAt,
-        List<PackageAddonResponse> addons
+        List<PackageAddonResponse> addons,
+        boolean applyIva,
+        BigDecimal ivaPercent,
+        List<PriceAddonResponse> priceAddons,
+        BigDecimal priceWithAddons
 ) {}

@@ -35,21 +35,23 @@ class SidebarSections {
     ],
   );
 
-  static const recepcion = SidebarNavGroup(
-    id: 'reception',
-    label: 'Recepción',
+  static const servicios = SidebarNavGroup(
+    id: 'servicios',
+    label: 'Servicios',
     items: [
-      SidebarNavItem(id: 'reception-pagos', label: 'Pagos pendientes', icon: Icons.payments_outlined),
-      SidebarNavItem(id: 'reception-actividades', label: 'Actividades', icon: Icons.event_outlined),
-      SidebarNavItem(id: 'reception-hoy', label: 'Actividades del día', icon: Icons.today),
-      SidebarNavItem(id: 'reception-calendario', label: 'Calendario', icon: Icons.calendar_month),
+      SidebarNavItem(id: 'serv-actividades', label: 'Actividades', icon: Icons.event),
+      SidebarNavItem(id: 'serv-reservaciones', label: 'Mis reservaciones', icon: Icons.bookmark),
+      SidebarNavItem(id: 'serv-rutinas', label: 'Mis rutinas', icon: Icons.fitness_center),
+      SidebarNavItem(id: 'serv-solicitudes-citas', label: 'Solicitar cita', icon: Icons.event_note_outlined),
     ],
   );
 
-  static const admin = SidebarNavGroup(
-    id: 'admin',
+  static const administracion = SidebarNavGroup(
+    id: 'reception',
     label: 'Administración',
     items: [
+      SidebarNavItem(id: 'reception-actividades', label: 'Actividades', icon: Icons.event_outlined),
+      SidebarNavItem(id: 'reception-calendario', label: 'Calendario', icon: Icons.calendar_month),
       SidebarNavItem(id: 'admin-membresias', label: 'Membresías', icon: Icons.card_membership_outlined),
       SidebarNavItem(id: 'admin-usuarios', label: 'Usuarios', icon: Icons.people_outline),
     ],

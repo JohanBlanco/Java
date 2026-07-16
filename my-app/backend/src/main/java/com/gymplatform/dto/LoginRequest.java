@@ -1,9 +1,9 @@
 package com.gymplatform.dto;
 
-import jakarta.validation.constraints.Email;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotBlank;
 
 public record LoginRequest(
-        @NotBlank @Email String email,
+        @NotBlank @JsonAlias("email") String login,
         @NotBlank String password
 ) {}

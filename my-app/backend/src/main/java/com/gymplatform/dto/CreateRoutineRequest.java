@@ -9,6 +9,9 @@ public record CreateRoutineRequest(
         String notes,
         Long memberId,
         Long templateId,
+        Long routineRequestId,
+        Integer daysPerWeek,
         boolean temporary,
+        List<RoutineDayRequest> days,
         List<RoutineExerciseRequest> exercises
 ) {}

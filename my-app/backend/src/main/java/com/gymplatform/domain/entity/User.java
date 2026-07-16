@@ -39,6 +39,13 @@ public class User {
     @Column(nullable = false)
     private boolean active = true;
 
+    @Column(length = 32)
+    private String whatsappPhone;
+
+    /** Cédula normalizada (9 dígitos). Usada para iniciar sesión. */
+    @Column(length = 16, unique = true)
+    private String nationalId;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -61,6 +68,10 @@ public class User {
     public void setOrganization(Organization organization) { this.organization = organization; }
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
+    public String getWhatsappPhone() { return whatsappPhone; }
+    public void setWhatsappPhone(String whatsappPhone) { this.whatsappPhone = whatsappPhone; }
+    public String getNationalId() { return nationalId; }
+    public void setNationalId(String nationalId) { this.nationalId = nationalId; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 }

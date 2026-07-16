@@ -1,6 +1,10 @@
 package com.gymplatform.dto;
 
+import jakarta.validation.constraints.NotBlank;
+
 public record RoutineRequestCreate(
-        String description,
-        String goals
+        @NotBlank String description,
+        @NotBlank String goals,
+        String additionalNotes,
+        Long preferredInstructorId
 ) {}

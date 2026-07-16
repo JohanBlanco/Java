@@ -13,5 +13,7 @@ public record RoutineResponse(
         String instructorName,
         Long templateId,
         boolean temporary,
+        Integer daysPerWeek,
+        List<RoutineDayResponse> days,
         List<RoutineExerciseResponse> exercises
 ) {}

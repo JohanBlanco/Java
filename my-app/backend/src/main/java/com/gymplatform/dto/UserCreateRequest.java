@@ -19,5 +19,11 @@ public record UserCreateRequest(
         Integer age,
         String goals,
         String phone,
-        Long membershipPackageId
+        Long membershipPackageId,
+        @Schema(description = "Obligatoria. 9 dígitos numéricos. Sirve para iniciar sesión.")
+        @NotBlank String nationalId,
+        @Schema(description = "Número local de WhatsApp (8 dígitos, Costa Rica).")
+        String whatsappPhone,
+        @Schema(description = "Si true (por defecto), envía el formulario de registro del miembro por WhatsApp al crear.")
+        Boolean sendRegistrationForm
 ) {}

@@ -8,8 +8,8 @@ export default function VentasLayout() {
   return (
     <div>
       <div className="page-header">
-        <h1>{active?.label ?? 'Ventas'}</h1>
-        <p>{active?.description ?? 'Pagos registrados en recepción'}</p>
+        <h1>{active?.label ?? 'Tienda'}</h1>
+        <p>{active?.description ?? 'Tienda del gimnasio'}</p>
       </div>
       <Outlet />
     </div>

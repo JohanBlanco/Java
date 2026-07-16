@@ -23,3 +23,14 @@ alwaysApply: false
 - `PLATFORM_OWNER` → `/platform`
 - `GYM_OWNER` → `/admin` + dashboard
 - `INSTRUCTOR` / `MEMBER` → dashboard según permisos
+
+## Controles booleanos
+
+- **Nunca usar `<input type="checkbox">` en el panel** (ni apariencia de checkbox).
+- Todo on/off va con `HorizontalSwitch` (`web/src/components/HorizontalSwitch.tsx`).
+- Excepción: campos de formularios dinámicos del miembro (`FormFieldRenderer`) si el tipo del formulario es checkbox.
+
+## Confirmaciones
+
+- **Nunca usar** `window.confirm`, `window.alert` ni `window.prompt`.
+- Confirmaciones destructivas (eliminar, etc.) con `ConfirmDialog` (`web/src/components/ConfirmDialog.tsx`) o el mismo patrón de modal del sistema (`confirm-dialog-overlay`).

@@ -22,13 +22,16 @@ public class OrganizationService {
     private final OrganizationRepository organizationRepository;
     private final UserRepository userRepository;
     private final UserService userService;
+    private final CustomFormService customFormService;
 
     public OrganizationService(OrganizationRepository organizationRepository,
                                UserRepository userRepository,
-                               UserService userService) {
+                               UserService userService,
+                               CustomFormService customFormService) {
         this.organizationRepository = organizationRepository;
         this.userRepository = userRepository;
         this.userService = userService;
+        this.customFormService = customFormService;
     }
 
     @Transactional
@@ -49,6 +52,7 @@ public class OrganizationService {
             org.setSubscriptionStatus(request.subscriptionStatus());
         }
         org = organizationRepository.save(org);
+        customFormService.ensureMemberRegistrationForm(org.getId());
 
         userService.createStaff(org.getId(), new UserCreateRequest(
                 request.ownerFirstName(),
@@ -56,11 +60,9 @@ public class OrganizationService {
                 request.ownerEmail(),
                 request.ownerPassword(),
                 List.of(Role.GYM_OWNER),
-                null,
-                null,
-                null,
-                null,
-                null
+                null, null, null, null, null,
+                request.ownerNationalId(),
+                null, false
         ));
 
         return toResponse(org);

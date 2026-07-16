@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
+import '../utils/date_format.dart';
+import '../utils/list_filter.dart';
+import '../widgets/list_filter_field.dart';
 
 class ActivitiesScreen extends StatefulWidget {
   final bool isStaff;
@@ -15,6 +18,7 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
   List<dynamic> _activities = [];
   Map<String, dynamic>? _membershipUsage;
   bool _loading = true;
+  String _filterQuery = '';
 
   @override
   void initState() {
@@ -107,6 +111,8 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
 
+    final filtered = filterByQuery(_activities, _filterQuery);
+
     return RefreshIndicator(
       onRefresh: _load,
       child: _activities.isEmpty
@@ -119,11 +125,28 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
             )
           : ListView.builder(
               padding: const EdgeInsets.only(bottom: 16),
-              itemCount: _activities.length + (widget.isStaff ? 0 : 1),
+              itemCount: filtered.length + (widget.isStaff ? 1 : 2),
               itemBuilder: (context, index) {
                 if (!widget.isStaff && index == 0) return _membershipBanner();
+                final filterIndex = widget.isStaff ? 0 : 1;
+                if (index == filterIndex) {
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: ListFilterField(
+                      onChanged: (v) => setState(() => _filterQuery = v),
+                      resultCount: filtered.length,
+                      totalCount: _activities.length,
+                    ),
+                  );
+                }
+                if (filtered.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: Text('Ningún resultado coincide con la búsqueda')),
+                  );
+                }
 
-                final a = _activities[index - (widget.isStaff ? 0 : 1)];
+                final a = filtered[index - filterIndex - 1];
                 final capacity = a['capacity'];
                 final hasCapacity = a['hasCapacity'] ?? true;
 
@@ -136,7 +159,7 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
                       children: [
                         Text(a['name'], style: Theme.of(context).textTheme.titleMedium),
                         const SizedBox(height: 4),
-                        Text('${a['activityDate']} · ${a['startTime']} - ${a['endTime']}'),
+                        Text('${AppDateFormat.formatIsoDate(a['activityDate'] as String?)} · ${a['startTime']} - ${a['endTime']}'),
                         Text(a['locationName'] ?? '', style: Theme.of(context).textTheme.bodySmall),
                         if ((a['description'] ?? '').toString().isNotEmpty)
                           Padding(

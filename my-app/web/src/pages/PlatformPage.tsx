@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
 import type { Organization } from '../types'
+import { useFilteredList } from '../hooks/useFilteredList'
 
 const DEFAULT_PASSWORD = '12345678'
 
@@ -11,6 +12,7 @@ const emptyForm = () => ({
   ownerFirstName: '',
   ownerLastName: '',
   ownerEmail: '',
+  ownerNationalId: '',
   password: DEFAULT_PASSWORD,
   subscriptionStatus: 'ACTIVE' as string,
 })
@@ -29,6 +31,8 @@ export default function PlatformPage() {
   }
 
   useEffect(() => { load() }, [])
+
+  const { filtered, filterInput } = useFilteredList(orgs)
 
   const populateForm = (org: Organization) => {
     setForm({
@@ -66,6 +70,7 @@ export default function PlatformPage() {
     ownerFirstName: form.ownerFirstName,
     ownerLastName: form.ownerLastName,
     ownerEmail: form.ownerEmail,
+    ownerNationalId: form.ownerNationalId,
     ownerPassword: form.password,
     subscriptionStatus: form.subscriptionStatus,
   })
@@ -121,8 +126,13 @@ export default function PlatformPage() {
 
       <div className="platform-layout">
         <div className="platform-list">
+          {orgs.length > 0 && filterInput}
           <div className="grid grid-2">
-            {orgs.map((org) => (
+            {orgs.length === 0 ? (
+              <div className="empty-state card">No hay clientes registrados.</div>
+            ) : filtered.length === 0 ? (
+              <div className="empty-state card">Ningún resultado coincide con la búsqueda</div>
+            ) : filtered.map((org) => (
               <div
                 key={org.id}
                 className={`card card-selectable${selectedId === org.id ? ' card-selected' : ''}`}
@@ -193,6 +203,19 @@ export default function PlatformPage() {
                 <label>Correo de acceso</label>
                 <input type="email" value={form.ownerEmail} onChange={(e) => setField('ownerEmail', e.target.value)} required />
               </div>
+              {!isEditing && (
+                <div className="form-group">
+                  <label>Cédula del administrador</label>
+                  <input
+                    inputMode="numeric"
+                    value={form.ownerNationalId}
+                    onChange={(e) => setField('ownerNationalId', e.target.value.replace(/\D/g, '').slice(0, 9))}
+                    placeholder="9 dígitos"
+                    required
+                    maxLength={9}
+                  />
+                </div>
+              )}
               <div className="form-group">
                 <label>Contraseña</label>
                 <input

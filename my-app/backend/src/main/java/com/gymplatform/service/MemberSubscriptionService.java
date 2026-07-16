@@ -3,7 +3,9 @@ package com.gymplatform.service;
 import com.gymplatform.domain.entity.MemberSubscription;
 import com.gymplatform.domain.entity.MembershipPackage;
 import com.gymplatform.domain.entity.User;
+import com.gymplatform.domain.enums.MemberMembershipStatus;
 import com.gymplatform.domain.enums.ReservationStatus;
+import com.gymplatform.dto.MemberMembershipInfo;
 import com.gymplatform.dto.MembershipUsageResponse;
 import com.gymplatform.exception.BusinessException;
 import com.gymplatform.exception.ResourceNotFoundException;
@@ -16,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -36,6 +39,10 @@ public class MemberSubscriptionService {
         this.reservationRepository = reservationRepository;
     }
 
+    /**
+     * Asigna membresía. Si el miembro ya tiene una vigente, la nueva queda programada
+     * desde el día siguiente al vencimiento. No se permite más de una renovación en cola.
+     */
     @Transactional
     public MemberSubscription assignMembership(Long organizationId, Long memberId, Long packageId) {
         User member = userRepository.findById(memberId)
@@ -50,20 +57,116 @@ public class MemberSubscriptionService {
             throw new BusinessException("La membresía no pertenece a este gimnasio");
         }
 
-        subscriptionRepository.findFirstByMemberIdAndActiveTrueOrderByStartDateDesc(memberId)
-                .ifPresent(existing -> existing.setActive(false));
+        Optional<MemberSubscription> queued = getQueuedSubscription(memberId);
+        if (queued.isPresent()) {
+            throw new BusinessException(
+                    "Este miembro ya tiene una membresía programada a partir del "
+                            + queued.get().getStartDate()
+                            + ". No se puede asignar otra hasta que esa surta efecto."
+            );
+        }
+
+        LocalDate today = LocalDate.now();
+        Optional<MemberSubscription> current = getCurrentPeriodSubscription(memberId);
+        LocalDate startDate;
+        if (current.isPresent()) {
+            startDate = current.get().getEndDate().plusDays(1);
+        } else {
+            // Sin período vigente: desactivar restos activos vencidos / huérfanos
+            for (MemberSubscription existing : subscriptionRepository.findByMemberIdAndActiveTrueOrderByStartDateAsc(memberId)) {
+                existing.setActive(false);
+            }
+            startDate = today;
+        }
 
         MemberSubscription subscription = new MemberSubscription();
         subscription.setMember(member);
         subscription.setMembershipPackage(pkg);
-        subscription.setStartDate(LocalDate.now());
-        subscription.setEndDate(LocalDate.now().plusMonths(pkg.getDurationMonths()));
+        subscription.setStartDate(startDate);
+        subscription.setEndDate(startDate.plusMonths(pkg.getDurationMonths()));
         subscription.setActive(true);
         return subscriptionRepository.save(subscription);
     }
 
+    public Optional<MemberSubscription> getCurrentPeriodSubscription(Long memberId) {
+        LocalDate today = LocalDate.now();
+        return subscriptionRepository.findByMemberIdAndActiveTrueOrderByStartDateAsc(memberId).stream()
+                .filter(s -> !s.getStartDate().isAfter(today) && !s.getEndDate().isBefore(today))
+                .findFirst();
+    }
+
+    public Optional<MemberSubscription> getQueuedSubscription(Long memberId) {
+        LocalDate today = LocalDate.now();
+        return subscriptionRepository.findByMemberIdAndActiveTrueOrderByStartDateAsc(memberId).stream()
+                .filter(s -> s.getStartDate().isAfter(today))
+                .findFirst();
+    }
+
     public Optional<MemberSubscription> getActiveSubscription(Long memberId) {
-        return subscriptionRepository.findFirstByMemberIdAndActiveTrueOrderByStartDateDesc(memberId);
+        return getCurrentPeriodSubscription(memberId);
+    }
+
+    public Optional<MemberSubscription> getLatestSubscription(Long memberId) {
+        return subscriptionRepository.findFirstByMemberIdOrderByStartDateDesc(memberId);
+    }
+
+    public MemberMembershipInfo getMembershipInfo(Long memberId) {
+        Optional<MemberSubscription> queuedOpt = getQueuedSubscription(memberId);
+        LocalDate queuedStart = queuedOpt.map(MemberSubscription::getStartDate).orElse(null);
+        String queuedName = queuedOpt
+                .map(s -> s.getMembershipPackage().getName())
+                .orElse(null);
+        boolean hasQueued = queuedOpt.isPresent();
+
+        Optional<MemberSubscription> currentOpt = getCurrentPeriodSubscription(memberId);
+        if (currentOpt.isPresent()) {
+            MemberSubscription current = currentOpt.get();
+            return new MemberMembershipInfo(
+                    MemberMembershipStatus.ACTIVE,
+                    current.getEndDate(),
+                    current.getMembershipPackage().getName(),
+                    hasQueued,
+                    queuedStart,
+                    queuedName
+            );
+        }
+
+        Optional<MemberSubscription> latestOpt = getLatestSubscription(memberId);
+        if (latestOpt.isEmpty()) {
+            return new MemberMembershipInfo(MemberMembershipStatus.PAYMENT_PENDING, null, null, hasQueued, queuedStart, queuedName);
+        }
+        MemberSubscription latest = latestOpt.get();
+        LocalDate today = LocalDate.now();
+        LocalDate endDate = latest.getEndDate();
+        String packageName = latest.getMembershipPackage().getName();
+
+        // Si solo hay cola futura sin período actual (raro), marcar pendiente
+        if (latest.getStartDate().isAfter(today)) {
+            return new MemberMembershipInfo(
+                    MemberMembershipStatus.PAYMENT_PENDING,
+                    null,
+                    packageName,
+                    hasQueued,
+                    queuedStart,
+                    queuedName
+            );
+        }
+        if (!endDate.isBefore(today.minusMonths(2))) {
+            return new MemberMembershipInfo(
+                    MemberMembershipStatus.PAYMENT_PENDING,
+                    endDate,
+                    packageName,
+                    hasQueued,
+                    queuedStart,
+                    queuedName
+            );
+        }
+        return new MemberMembershipInfo(MemberMembershipStatus.INACTIVE, null, packageName, hasQueued, queuedStart, queuedName);
+    }
+
+    private boolean isVigente(MemberSubscription subscription) {
+        LocalDate today = LocalDate.now();
+        return !subscription.getStartDate().isAfter(today) && !subscription.getEndDate().isBefore(today);
     }
 
     public long countUsedFreeActivities(Long memberId, MemberSubscription subscription) {

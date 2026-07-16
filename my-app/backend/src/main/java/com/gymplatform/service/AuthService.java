@@ -6,6 +6,7 @@ import com.gymplatform.dto.*;
 import com.gymplatform.exception.BusinessException;
 import com.gymplatform.exception.ResourceNotFoundException;
 import com.gymplatform.repository.*;
+import com.gymplatform.util.NationalIdHelper;
 import com.gymplatform.util.RoleUtils;
 import com.gymplatform.security.JwtTokenProvider;
 import com.gymplatform.security.UserPrincipal;
@@ -39,7 +40,7 @@ public class AuthService {
 
     public AuthResponse login(LoginRequest request) {
         var auth = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.email(), request.password()));
+                new UsernamePasswordAuthenticationToken(request.login(), request.password()));
         UserPrincipal principal = (UserPrincipal) auth.getPrincipal();
         String token = tokenProvider.generateToken(principal);
 
@@ -48,6 +49,21 @@ public class AuthService {
 
         return new AuthResponse(
                 token,
+                user.getId(),
+                user.getEmail(),
+                user.getFirstName(),
+                user.getLastName(),
+                RoleUtils.toNames(user.getRoles()),
+                user.getOrganization() != null ? user.getOrganization().getId() : null
+        );
+    }
+
+    public AuthResponse currentSession(UserPrincipal principal) {
+        User user = userRepository.findByEmail(principal.getUsername())
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+
+        return new AuthResponse(
+                null,
                 user.getId(),
                 user.getEmail(),
                 user.getFirstName(),
@@ -69,6 +85,17 @@ public class AuthService {
             throw new BusinessException("El correo ya está registrado");
         }
 
+        String nationalId = NationalIdHelper.normalize(request.nationalId());
+        if (!NationalIdHelper.isValid(nationalId)) {
+            throw new BusinessException("La cédula debe tener 9 dígitos numéricos");
+        }
+        if (memberProfileRepository.existsNationalIdInOrganization(nationalId, organizationId, null)) {
+            throw new BusinessException("Ya existe un miembro con esa cédula en este gimnasio");
+        }
+        if (userRepository.existsByNationalIdExcluding(nationalId, null)) {
+            throw new BusinessException("Ya existe un usuario con esa cédula");
+        }
+
         User user = new User();
         user.setFirstName(request.firstName());
         user.setLastName(request.lastName());
@@ -76,6 +103,7 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setRoles(Set.of(Role.MEMBER));
         user.setOrganization(org);
+        user.setNationalId(nationalId);
 
         user = userRepository.save(user);
 
@@ -85,6 +113,7 @@ public class AuthService {
         profile.setAge(request.age());
         profile.setGoals(request.goals());
         profile.setPhone(request.phone());
+        profile.setNationalId(nationalId);
         memberProfileRepository.save(profile);
 
         return UserMapper.toResponse(user, profile);

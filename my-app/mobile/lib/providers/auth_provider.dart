@@ -45,8 +45,8 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> login(String email, String password) async {
-    final response = await _api.login(email, password);
+  Future<void> login(String login, String password) async {
+    final response = await _api.login(login, password);
     _api.setToken(response['token']);
     _user = response;
 

@@ -52,3 +52,4 @@ Al hacer cambios significativos, actualizar:
 - Web: API en `web/src/api.ts`, tipos en `web/src/types.ts`
 - Mobile: API en `mobile/lib/services/api_service.dart`
 - Mensajes de error en español para el usuario final
+- Calendario actividades: bloques timeline verdes (`.activity-block`); vista **mes** usa `var(--primary)` del tema, no verde. Píldoras mes/semana: hora arriba, nombre abajo

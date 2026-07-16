@@ -1,44 +1,19 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
+import type { ThemeMode } from './preferences'
+import { PreferencesProvider, usePreferences } from './preferences'
 
-export type ThemeMode = 'dark' | 'light'
-
-const STORAGE_KEY = 'theme'
-
-type ThemeContextValue = {
-  theme: ThemeMode
-  setTheme: (theme: ThemeMode) => void
-}
-
-const ThemeContext = createContext<ThemeContextValue | null>(null)
-
-function readStoredTheme(): ThemeMode {
-  const stored = localStorage.getItem(STORAGE_KEY)
-  return stored === 'light' ? 'light' : 'dark'
-}
+export type { ThemeMode }
 
 export function applyTheme(theme: ThemeMode) {
   document.documentElement.setAttribute('data-theme', theme)
+  document.documentElement.style.colorScheme = theme
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeMode>(() => readStoredTheme())
-
-  useEffect(() => {
-    applyTheme(theme)
-    localStorage.setItem(STORAGE_KEY, theme)
-  }, [theme])
-
-  const setTheme = (next: ThemeMode) => setThemeState(next)
-
-  return (
-    <ThemeContext.Provider value={{ theme, setTheme }}>
-      {children}
-    </ThemeContext.Provider>
-  )
+  return <PreferencesProvider>{children}</PreferencesProvider>
 }
 
 export function useTheme() {
-  const ctx = useContext(ThemeContext)
-  if (!ctx) throw new Error('useTheme must be used within ThemeProvider')
-  return ctx
+  const { theme, setTheme } = usePreferences()
+  return { theme, setTheme }
 }

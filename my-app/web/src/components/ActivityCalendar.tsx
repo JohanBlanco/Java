@@ -1,5 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Activity } from '../types'
+import { useDateFormat } from '../preferences/useDateFormat'
+import ActivityTimeline from './ActivityTimeline'
+import ActivityCapacityDisplay from './ActivityCapacityDisplay'
+import { formatActivityScheduleFromActivity, isAllDayActivity, isActivityFull } from '../utils/activityCalendarUtils'
 import {
   type CalendarView,
   WEEKDAY_LABELS,
@@ -7,7 +11,6 @@ import {
   activitiesForDay,
   activitiesForRange,
   addDays,
-  formatPeriodLabel,
   getRangeForView,
   isSameDay,
   shiftAnchor,
@@ -19,6 +22,16 @@ type Props = {
   activities: Activity[]
   editable?: boolean
   onActivityEdit?: (activity: Activity) => void
+  onCreateActivity?: () => void
+  onCreateSlot?: (dateIso: string, startMin: number, endMin: number) => void
+  onMoveOccurrence?: (
+    activity: Activity,
+    dateIso: string,
+    startMin: number,
+    endMin: number,
+  ) => void
+  onScheduleConflict?: () => void
+  onRangeChange?: (from: string, to: string) => void
 }
 
 const VIEWS: { id: CalendarView; label: string }[] = [
@@ -32,64 +45,18 @@ function activityKey(a: Activity): string {
   return `${a.id}-${a.activityDate}`
 }
 
-function ActivityChip({
-  activity,
-  editable,
-  onEdit,
-}: {
-  activity: Activity
-  editable?: boolean
-  onEdit?: (activity: Activity) => void
-}) {
-  const handleClick = () => {
-    if (editable && onEdit) onEdit(activity)
-  }
-
-  return (
-    <div
-      className={`calendar-activity${editable ? ' calendar-activity--editable' : ''}${activity.hasOccurrenceOverride ? ' calendar-activity--override' : ''}`}
-      onClick={handleClick}
-      onKeyDown={(e) => editable && e.key === 'Enter' && handleClick()}
-      role={editable ? 'button' : undefined}
-      tabIndex={editable ? 0 : undefined}
-    >
-      <strong>
-        {activity.name}
-        {activity.hasOccurrenceOverride && (
-          <span className="calendar-override-dot" title="Horario modificado" />
-        )}
-      </strong>
-      <span>{activity.startTime?.slice(0, 5)} · {activity.locationName}</span>
-    </div>
-  )
-}
-
-function MonthPill({
-  activity,
-  editable,
-  onEdit,
-}: {
-  activity: Activity
-  editable?: boolean
-  onEdit?: (activity: Activity) => void
-}) {
-  const label = activity.hasOccurrenceOverride ? `${activity.name}*` : activity.name
-  if (!editable || !onEdit) {
-    return <span className="calendar-month-pill">{label}</span>
-  }
-  return (
-    <button
-      type="button"
-      className={`calendar-month-pill calendar-month-pill--btn${activity.hasOccurrenceOverride ? ' override' : ''}`}
-      onClick={() => onEdit(activity)}
-    >
-      {label}
-    </button>
-  )
-}
-
-export default function ActivityCalendar({ activities, editable = false, onActivityEdit }: Props) {
-  const [view, setView] = useState<CalendarView>('month')
+export default function ActivityCalendar({
+  activities,
+  editable = false,
+  onActivityEdit,
+  onCreateActivity,
+  onCreateSlot,
+  onMoveOccurrence,
+  onScheduleConflict,
+  onRangeChange,
+}: Props) {
+  const { formatPeriodLabel } = useDateFormat()
+  const [view, setView] = useState<CalendarView>('week')
   const [anchor, setAnchor] = useState(() => new Date())
 
   const range = useMemo(() => getRangeForView(view, anchor), [view, anchor])
@@ -98,11 +65,15 @@ export default function ActivityCalendar({ activities, editable = false, onActiv
     [activities, range.from, range.to],
   )
 
+  useEffect(() => {
+    onRangeChange?.(toIsoDate(range.from), toIsoDate(range.to))
+  }, [range.from, range.to, onRangeChange])
+
   const goToday = () => setAnchor(new Date())
 
   return (
-    <div className="activity-calendar card">
-      <div className="calendar-toolbar">
+    <div className="appointment-calendar card appointment-calendar--gcal">
+      <div className="calendar-toolbar appointment-gcal-toolbar">
         <div className="calendar-view-tabs">
           {VIEWS.map((v) => (
             <button
@@ -120,94 +91,113 @@ export default function ActivityCalendar({ activities, editable = false, onActiv
           <span className="calendar-period">{formatPeriodLabel(view, anchor)}</span>
           <button type="button" className="btn-secondary" onClick={() => setAnchor((d) => shiftAnchor(view, d, 1))}>›</button>
           <button type="button" className="btn-secondary" onClick={goToday}>Hoy</button>
+          {editable && onCreateActivity && (
+            <button type="button" className="btn-primary" onClick={onCreateActivity}>
+              Nueva actividad
+            </button>
+          )}
         </div>
       </div>
 
-      {editable && (
-        <p className="calendar-hint">Haz clic en una actividad para editarla.</p>
+      {editable && (view === 'day' || view === 'week') && (
+        <p className="calendar-hint">
+          Doble clic en un espacio vacío para crear, o usa «Nueva actividad». Arrastra para cambiar el horario.
+        </p>
       )}
 
-      {view === 'day' && (
-        <div className="calendar-day-view">
-          {activitiesForDay(activities, anchor).length === 0 ? (
-            <p className="calendar-empty">Sin actividades este día</p>
-          ) : activitiesForDay(activities, anchor).map((a) => (
-            <ActivityChip
-              key={activityKey(a)}
-              activity={a}
-              editable={editable}
-              onEdit={onActivityEdit}
-            />
-          ))}
-        </div>
-      )}
-
-      {view === 'week' && (
-        <div className="calendar-week-grid">
-          {Array.from({ length: 7 }, (_, i) => {
-            const day = addDays(startOfWeek(anchor), i)
-            const dayActs = activitiesForDay(activities, day)
-            return (
-              <div key={toIsoDate(day)} className={`calendar-week-col${isSameDay(day, new Date()) ? ' today' : ''}`}>
-                <div className="calendar-week-head">
-                  <span>{WEEKDAY_LABELS[i]}</span>
-                  <strong>{day.getDate()}</strong>
-                </div>
-                {dayActs.length === 0 ? (
-                  <p className="calendar-empty-sm">—</p>
-                ) : dayActs.map((a) => (
-                  <ActivityChip
-                    key={activityKey(a)}
-                    activity={a}
-                    editable={editable}
-                    onEdit={onActivityEdit}
-                  />
-                ))}
-              </div>
-            )
-          })}
-        </div>
+      {(view === 'day' || view === 'week') && (
+        <ActivityTimeline
+          activities={activities}
+          view={view}
+          anchor={anchor}
+          editable={editable}
+          onActivityEdit={onActivityEdit}
+          onCreateSlot={editable ? onCreateSlot : undefined}
+          onMoveOccurrence={editable ? onMoveOccurrence : undefined}
+          onScheduleConflict={onScheduleConflict}
+        />
       )}
 
       {view === 'month' && (
-        <div className="calendar-month">
-          <div className="calendar-month-head">
-            {WEEKDAY_LABELS.map((label) => (
-              <span key={label}>{label}</span>
-            ))}
+        <div className="calendar-month-scroll">
+          <div className="calendar-month">
+            <div className="calendar-month-head">
+              {WEEKDAY_LABELS.map((label) => (
+                <span key={label}>{label}</span>
+              ))}
+            </div>
+            <div className="calendar-month-grid">
+              {(() => {
+                const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1)
+                const start = startOfWeek(first)
+                const cells = []
+                for (let i = 0; i < 42; i++) {
+                  const day = addDays(start, i)
+                  const inMonth = day.getMonth() === anchor.getMonth()
+                  const dayActs = activitiesForDay(activities, day)
+                  cells.push(
+                    <div
+                      key={toIsoDate(day)}
+                      className={`calendar-month-cell${inMonth ? '' : ' muted'}${isSameDay(day, new Date()) ? ' today' : ''}${dayActs.some(isAllDayActivity) ? ' calendar-month-cell--all-day' : ''}`}
+                    >
+                      <span className="calendar-day-num">{day.getDate()}</span>
+                      {dayActs.filter(isAllDayActivity).map((a) => (
+                        editable && onActivityEdit ? (
+                          <button
+                            key={activityKey(a)}
+                            type="button"
+                            className={`activity-all-day-pill${isActivityFull(a) ? ' activity-all-day-pill--full' : ''}${a.occurrenceCancelled ? ' activity-all-day-pill--cancelled' : ''}`}
+                            onClick={() => onActivityEdit(a)}
+                          >
+                            <span className="activity-all-day-pill-name">{a.name}</span>
+                            <ActivityCapacityDisplay activity={a} compact className="activity-month-pill-capacity" />
+                          </button>
+                        ) : (
+                          <span
+                            key={activityKey(a)}
+                            className={`activity-all-day-pill${isActivityFull(a) ? ' activity-all-day-pill--full' : ''}${a.occurrenceCancelled ? ' activity-all-day-pill--cancelled' : ''}`}
+                          >
+                            <span className="activity-all-day-pill-name">{a.name}</span>
+                            <ActivityCapacityDisplay activity={a} compact className="activity-month-pill-capacity" />
+                          </span>
+                        )
+                      ))}
+                      {dayActs.filter((a) => !isAllDayActivity(a)).map((a) => (
+                        editable && onActivityEdit ? (
+                          <button
+                            key={activityKey(a)}
+                            type="button"
+                            className={`appointment-month-pill activity-month-pill${a.hasOccurrenceOverride ? ' activity-month-pill--override' : ''}${isActivityFull(a) ? ' activity-month-pill--full' : ''}${a.occurrenceCancelled ? ' activity-month-pill--cancelled' : ''}`}
+                            onClick={() => onActivityEdit(a)}
+                          >
+                            <span className="activity-month-pill-time">{formatActivityScheduleFromActivity(a)}</span>
+                            <span className="activity-month-pill-name">
+                              {a.name}
+                              {a.hasOccurrenceOverride && '*'}
+                            </span>
+                            <ActivityCapacityDisplay activity={a} compact className="activity-month-pill-capacity" />
+                          </button>
+                        ) : (
+                          <span
+                            key={activityKey(a)}
+                            className={`appointment-month-pill activity-month-pill${isActivityFull(a) ? ' activity-month-pill--full' : ''}${a.occurrenceCancelled ? ' activity-month-pill--cancelled' : ''}`}
+                          >
+                            <span className="activity-month-pill-time">{formatActivityScheduleFromActivity(a)}</span>
+                            <span className="activity-month-pill-name">{a.name}</span>
+                            <ActivityCapacityDisplay activity={a} compact className="activity-month-pill-capacity" />
+                          </span>
+                        )
+                      ))}
+                    </div>,
+                  )
+                }
+                return cells
+              })()}
+            </div>
           </div>
-          <div className="calendar-month-grid">
-            {(() => {
-              const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1)
-              const start = startOfWeek(first)
-              const cells = []
-              for (let i = 0; i < 42; i++) {
-                const day = addDays(start, i)
-                const inMonth = day.getMonth() === anchor.getMonth()
-                const dayActs = activitiesForDay(activities, day)
-                cells.push(
-                  <div
-                    key={toIsoDate(day)}
-                    className={`calendar-month-cell${inMonth ? '' : ' muted'}${isSameDay(day, new Date()) ? ' today' : ''}`}
-                  >
-                    <span className="calendar-day-num">{day.getDate()}</span>
-                    {dayActs.slice(0, 2).map((a) => (
-                      <MonthPill
-                        key={activityKey(a)}
-                        activity={a}
-                        editable={editable}
-                        onEdit={onActivityEdit}
-                      />
-                    ))}
-                    {dayActs.length > 2 && (
-                      <span className="calendar-more">+{dayActs.length - 2}</span>
-                    )}
-                  </div>,
-                )
-              }
-              return cells
-            })()}
-          </div>
+          {inRange.length > 0 && (
+            <p className="calendar-summary">{inRange.length} actividad{inRange.length === 1 ? '' : 'es'} en el periodo</p>
+          )}
         </div>
       )}
 
@@ -235,9 +225,6 @@ export default function ActivityCalendar({ activities, editable = false, onActiv
         </div>
       )}
 
-      {inRange.length > 0 && view !== 'year' && (
-        <p className="calendar-summary">{inRange.length} actividad{inRange.length === 1 ? '' : 'es'} en el periodo</p>
-      )}
     </div>
   )
 }

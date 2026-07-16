@@ -1,14 +1,18 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../api'
-import type { User } from '../types'
+import RoutineDisplay from '../components/RoutineDisplay'
+import { useToast } from '../toast'
+import type { Routine, User } from '../types'
 
 export default function ProfilePage() {
+  const { showSuccess } = useToast()
   const [user, setUser] = useState<User | null>(null)
+  const [routines, setRoutines] = useState<Routine[]>([])
   const [birthYear, setBirthYear] = useState('')
   const [age, setAge] = useState('')
   const [goals, setGoals] = useState('')
   const [phone, setPhone] = useState('')
-  const [saved, setSaved] = useState(false)
 
   useEffect(() => {
     api.getMe().then((u) => {
@@ -20,6 +24,9 @@ export default function ProfilePage() {
         setPhone(u.profile.phone ?? '')
       }
     })
+    api.getMyRoutines()
+      .then(setRoutines)
+      .catch(() => setRoutines([]))
   }, [])
 
   const handleSave = async (e: React.FormEvent) => {
@@ -29,8 +36,7 @@ export default function ProfilePage() {
       age: age ? parseInt(age) : null,
       goals, phone,
     })
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    showSuccess('Perfil actualizado')
   }
 
   if (!user) return <p>Cargando...</p>
@@ -42,8 +48,25 @@ export default function ProfilePage() {
         <p>{user.firstName} {user.lastName} · {user.email}</p>
       </div>
 
+      {routines.length > 0 && (
+        <div style={{ marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <h2 style={{ fontSize: '1.15rem', margin: 0 }}>Mis rutinas</h2>
+            <Link to="/servicios/rutinas" className="btn-secondary" style={{ fontSize: '0.85rem' }}>
+              Ver todas
+            </Link>
+          </div>
+          <div className="grid grid-2">
+            {routines.slice(0, 2).map((r) => (
+              <div key={r.id} className="card">
+                <RoutineDisplay routine={r} compact />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="card" style={{ maxWidth: 600 }}>
-        {saved && <div style={{ color: 'var(--success)', marginBottom: '1rem' }}>Perfil actualizado</div>}
         <form onSubmit={handleSave}>
           <div className="form-group">
             <label>Año de nacimiento</label>

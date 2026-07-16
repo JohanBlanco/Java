@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../utils/list_filter.dart';
+import '../widgets/list_filter_field.dart';
 
 class VentasScreen extends StatefulWidget {
   const VentasScreen({super.key});
@@ -12,6 +14,7 @@ class VentasScreen extends StatefulWidget {
 class _VentasScreenState extends State<VentasScreen> {
   List<dynamic> _sales = [];
   bool _loading = true;
+  String _filterQuery = '';
 
   @override
   void initState() {
@@ -49,6 +52,8 @@ class _VentasScreenState extends State<VentasScreen> {
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
 
+    final filtered = filterByQuery(_sales, _filterQuery);
+
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
@@ -66,10 +71,18 @@ class _VentasScreenState extends State<VentasScreen> {
             ],
           ),
           const SizedBox(height: 16),
+          if (_sales.isNotEmpty)
+            ListFilterField(
+              onChanged: (v) => setState(() => _filterQuery = v),
+              resultCount: filtered.length,
+              totalCount: _sales.length,
+            ),
           if (_sales.isEmpty)
             const Card(child: Padding(padding: EdgeInsets.all(24), child: Center(child: Text('Sin ventas registradas'))))
+          else if (filtered.isEmpty)
+            const Card(child: Padding(padding: EdgeInsets.all(24), child: Center(child: Text('Ningún resultado coincide con la búsqueda'))))
           else
-            ..._sales.map((s) => Card(
+            ...filtered.map((s) => Card(
                   margin: const EdgeInsets.only(bottom: 8),
                   child: ListTile(
                     title: Text(s['concept'] ?? 'Venta'),

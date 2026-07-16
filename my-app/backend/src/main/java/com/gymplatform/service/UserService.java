@@ -3,17 +3,23 @@ package com.gymplatform.service;
 import com.gymplatform.domain.entity.MemberProfile;
 import com.gymplatform.domain.entity.Organization;
 import com.gymplatform.domain.entity.User;
+import com.gymplatform.domain.enums.MemberMembershipStatus;
 import com.gymplatform.domain.enums.Role;
+import com.gymplatform.dto.MemberMembershipInfo;
 import com.gymplatform.dto.MemberProfileUpdateRequest;
 import com.gymplatform.dto.UserCreateRequest;
+import com.gymplatform.dto.UserCreateResponse;
 import com.gymplatform.dto.UserResponse;
+import com.gymplatform.dto.WhatsappOutboundResponse;
 import com.gymplatform.exception.BusinessException;
 import com.gymplatform.exception.ResourceNotFoundException;
 import com.gymplatform.repository.MemberProfileRepository;
 import com.gymplatform.repository.OrganizationRepository;
 import com.gymplatform.repository.UserRepository;
 import com.gymplatform.util.PasswordHelper;
+import com.gymplatform.util.NationalIdHelper;
 import com.gymplatform.util.RoleUtils;
+import com.gymplatform.util.WhatsAppPhoneHelper;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,23 +35,27 @@ public class UserService {
     private final OrganizationRepository organizationRepository;
     private final PasswordEncoder passwordEncoder;
     private final MemberSubscriptionService memberSubscriptionService;
+    private final CustomFormService customFormService;
 
     public UserService(UserRepository userRepository, MemberProfileRepository memberProfileRepository,
                        OrganizationRepository organizationRepository, PasswordEncoder passwordEncoder,
-                       MemberSubscriptionService memberSubscriptionService) {
+                       MemberSubscriptionService memberSubscriptionService,
+                       CustomFormService customFormService) {
         this.userRepository = userRepository;
         this.memberProfileRepository = memberProfileRepository;
         this.organizationRepository = organizationRepository;
         this.passwordEncoder = passwordEncoder;
         this.memberSubscriptionService = memberSubscriptionService;
+        this.customFormService = customFormService;
     }
 
     @Transactional
-    public UserResponse createStaff(Long organizationId, UserCreateRequest request) {
+    public UserCreateResponse createStaff(Long organizationId, UserCreateRequest request) {
         Organization org = organizationRepository.findById(organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Organización no encontrada"));
 
         Set<Role> roles = RoleUtils.normalizeGymRoles(request.roles());
+        validateMemberRequirements(roles, request);
 
         if (userRepository.existsByEmail(request.email())) {
             throw new BusinessException("El correo ya está registrado");
@@ -58,17 +68,51 @@ public class UserService {
         user.setPasswordHash(passwordEncoder.encode(PasswordHelper.resolve(request.password())));
         user.setRoles(roles);
         user.setOrganization(org);
+        applyNationalId(user, null, request.nationalId());
+        if (request.whatsappPhone() != null && !request.whatsappPhone().isBlank()) {
+            user.setWhatsappPhone(WhatsAppPhoneHelper.normalizeCostaRicaLocal(request.whatsappPhone()));
+        }
 
         user = userRepository.save(user);
         ensureMemberProfile(user, request);
         assignMembershipIfRequested(organizationId, user, request);
-        return UserMapper.toResponse(user, memberProfileRepository.findByUserId(user.getId()).orElse(null));
+        String whatsappUrl = maybeSendRegistrationForm(organizationId, roles, request, user);
+        return new UserCreateResponse(toUserResponse(user), whatsappUrl);
+    }
+
+    private String maybeSendRegistrationForm(
+            Long organizationId,
+            Set<Role> roles,
+            UserCreateRequest request,
+            User user) {
+        if (!roles.contains(Role.MEMBER)) {
+            return null;
+        }
+        boolean shouldSend = request.sendRegistrationForm() == null
+                || Boolean.TRUE.equals(request.sendRegistrationForm());
+        if (!shouldSend) {
+            return null;
+        }
+        if (user.getWhatsappPhone() == null || user.getWhatsappPhone().isBlank()) {
+            return null;
+        }
+        return customFormService.buildRegistrationFormWhatsappUrl(organizationId, user).orElse(null);
+    }
+
+    @Transactional(readOnly = true)
+    public WhatsappOutboundResponse resendRegistrationForm(Long organizationId, Long userId) {
+        User user = requireStaffUser(organizationId, userId);
+        if (!user.hasRole(Role.MEMBER)) {
+            throw new BusinessException("Solo se puede reenviar el formulario de registro a miembros");
+        }
+        return customFormService.resendRegistrationFormViaWhatsApp(organizationId, user);
     }
 
     @Transactional
     public UserResponse updateStaff(Long organizationId, Long userId, UserCreateRequest request) {
         User user = requireStaffUser(organizationId, userId);
         Set<Role> roles = RoleUtils.normalizeGymRoles(request.roles());
+        validateMemberRequirements(roles, request);
 
         if (!request.email().equals(user.getEmail()) && userRepository.existsByEmail(request.email())) {
             throw new BusinessException("El correo ya está registrado");
@@ -78,6 +122,10 @@ public class UserService {
         user.setLastName(request.lastName());
         user.setEmail(request.email());
         user.setRoles(roles);
+        applyNationalId(user, user.getId(), request.nationalId());
+        if (request.whatsappPhone() != null && !request.whatsappPhone().isBlank()) {
+            user.setWhatsappPhone(WhatsAppPhoneHelper.normalizeCostaRicaLocal(request.whatsappPhone()));
+        }
 
         if (request.password() != null && !request.password().isBlank()) {
             user.setPasswordHash(passwordEncoder.encode(PasswordHelper.resolve(request.password())));
@@ -86,7 +134,7 @@ public class UserService {
         user = userRepository.save(user);
         ensureMemberProfile(user, request);
         assignMembershipIfRequested(organizationId, user, request);
-        return UserMapper.toResponse(user, memberProfileRepository.findByUserId(userId).orElse(null));
+        return toUserResponse(user);
     }
 
     private void assignMembershipIfRequested(Long organizationId, User user, UserCreateRequest request) {
@@ -95,22 +143,47 @@ public class UserService {
         }
     }
 
+    private void validateMemberRequirements(Set<Role> roles, UserCreateRequest request) {
+        if (!roles.contains(Role.MEMBER)) {
+            return;
+        }
+        if (request.membershipPackageId() == null) {
+            throw new BusinessException("Debe seleccionar una membresía para el miembro");
+        }
+    }
+
     private void ensureMemberProfile(User user, UserCreateRequest request) {
         if (!user.hasRole(Role.MEMBER)) {
             return;
         }
+
         MemberProfile profile = memberProfileRepository.findByUserId(user.getId())
                 .orElseGet(() -> {
                     MemberProfile p = new MemberProfile();
                     p.setUser(user);
                     return p;
                 });
+        profile.setNationalId(user.getNationalId());
         if (request.birthYear() != null) profile.setBirthYear(request.birthYear());
         if (request.age() != null) profile.setAge(request.age());
         if (request.goals() != null) profile.setGoals(request.goals());
         if (request.phone() != null) profile.setPhone(request.phone());
         profile.setUpdatedAt(Instant.now());
         memberProfileRepository.save(profile);
+    }
+
+    private void applyNationalId(User user, Long userId, String rawNationalId) {
+        if (rawNationalId == null || rawNationalId.isBlank()) {
+            throw new BusinessException("La cédula es obligatoria");
+        }
+        String normalized = NationalIdHelper.normalize(rawNationalId);
+        if (!NationalIdHelper.isValid(normalized)) {
+            throw new BusinessException("La cédula debe tener 9 dígitos numéricos");
+        }
+        if (userRepository.existsByNationalIdExcluding(normalized, userId)) {
+            throw new BusinessException("Ya existe un usuario con esa cédula");
+        }
+        user.setNationalId(normalized);
     }
 
     private User requireStaffUser(Long organizationId, Long userId) {
@@ -143,7 +216,9 @@ public class UserService {
                     email,
                     password,
                     List.of(Role.GYM_OWNER),
-                    null, null, null, null, null
+                    null, null, null, null, null,
+                    String.format("8%08d", organizationId % 100_000_000L),
+                    null, false
             ));
             return;
         }
@@ -171,15 +246,24 @@ public class UserService {
 
     public List<UserResponse> findByOrganization(Long organizationId) {
         return userRepository.findByOrganizationId(organizationId).stream()
-                .map(u -> UserMapper.toResponse(u, memberProfileRepository.findByUserId(u.getId()).orElse(null)))
+                .map(this::toUserResponse)
+                .toList();
+    }
+
+    public List<UserResponse> findPendingMembershipPayment(Long organizationId) {
+        return userRepository.findByOrganizationIdAndRole(organizationId, Role.MEMBER).stream()
+                .filter(u -> memberSubscriptionService.getMembershipInfo(u.getId()).status()
+                        == MemberMembershipStatus.PAYMENT_PENDING)
+                .map(this::toUserResponse)
+                .sorted(java.util.Comparator.comparing(
+                        u -> u.nextPaymentDate() != null ? u.nextPaymentDate() : java.time.LocalDate.MIN))
                 .toList();
     }
 
     public UserResponse getProfile(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
-        MemberProfile profile = memberProfileRepository.findByUserId(userId).orElse(null);
-        return UserMapper.toResponse(user, profile);
+        return toUserResponse(user);
     }
 
     @Transactional
@@ -198,9 +282,21 @@ public class UserService {
         if (request.goals() != null) profile.setGoals(request.goals());
         if (request.phone() != null) profile.setPhone(request.phone());
         if (request.emergencyContact() != null) profile.setEmergencyContact(request.emergencyContact());
+        if (request.nationalId() != null) {
+            applyNationalId(user, userId, request.nationalId());
+            profile.setNationalId(user.getNationalId());
+        }
         profile.setUpdatedAt(Instant.now());
 
         profile = memberProfileRepository.save(profile);
-        return UserMapper.toResponse(user, profile);
+        return toUserResponse(user);
+    }
+
+    private UserResponse toUserResponse(User user) {
+        MemberProfile profile = memberProfileRepository.findByUserId(user.getId()).orElse(null);
+        MemberMembershipInfo membershipInfo = user.hasRole(Role.MEMBER)
+                ? memberSubscriptionService.getMembershipInfo(user.getId())
+                : null;
+        return UserMapper.toResponse(user, profile, membershipInfo);
     }
 }

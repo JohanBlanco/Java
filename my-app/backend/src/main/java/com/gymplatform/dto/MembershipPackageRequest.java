@@ -1,5 +1,7 @@
 package com.gymplatform.dto;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
@@ -11,5 +13,8 @@ public record MembershipPackageRequest(
         @NotNull BigDecimal price,
         int durationMonths,
         Integer freeActivityQuota,
-        List<PackageAddonRequest> addons
+        List<PackageAddonRequest> addons,
+        Boolean applyIva,
+        @DecimalMin("0.0") BigDecimal ivaPercent,
+        @Valid List<PriceAddonRequest> priceAddons
 ) {}

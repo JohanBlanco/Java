@@ -2,6 +2,7 @@ package com.gymplatform.repository;
 
 import com.gymplatform.domain.entity.ActivityOccurrenceOverride;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import java.time.LocalDate;
@@ -20,4 +21,8 @@ public interface ActivityOccurrenceOverrideRepository extends JpaRepository<Acti
             @Param("activityIds") List<Long> activityIds,
             @Param("from") LocalDate from,
             @Param("to") LocalDate to);
+
+    @Modifying
+    @Query("DELETE FROM ActivityOccurrenceOverride o WHERE o.activity.id = :activityId")
+    void deleteByActivityId(@Param("activityId") Long activityId);
 }

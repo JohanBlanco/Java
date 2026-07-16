@@ -1,6 +1,8 @@
 package com.gymplatform.dto;
 
+import com.gymplatform.domain.enums.MemberMembershipStatus;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 
 public record UserResponse(
@@ -12,5 +14,13 @@ public record UserResponse(
         Long organizationId,
         boolean active,
         Instant createdAt,
-        MemberProfileResponse profile
+        MemberProfileResponse profile,
+        MemberMembershipStatus membershipStatus,
+        LocalDate nextPaymentDate,
+        String membershipPackageName,
+        boolean hasQueuedRenewal,
+        LocalDate queuedStartDate,
+        String queuedPackageName,
+        String whatsappPhone,
+        String nationalId
 ) {}

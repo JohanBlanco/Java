@@ -6,5 +6,6 @@ public record MemberProfileResponse(
         Integer age,
         String goals,
         String phone,
-        String emergencyContact
+        String emergencyContact,
+        String nationalId
 ) {}

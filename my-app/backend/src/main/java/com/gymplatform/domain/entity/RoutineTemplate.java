@@ -19,6 +19,8 @@ public class RoutineTemplate {
     private String description;
     private String goal;
 
+    private Integer daysPerWeek;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "instructor_id", nullable = false)
     private User instructor;
@@ -26,6 +28,10 @@ public class RoutineTemplate {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "organization_id", nullable = false)
     private Organization organization;
+
+    @OneToMany(mappedBy = "template", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("orderIndex ASC")
+    private List<RoutineTemplateDay> days = new ArrayList<>();
 
     @OneToMany(mappedBy = "template", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("orderIndex ASC")
@@ -45,10 +51,14 @@ public class RoutineTemplate {
     public void setDescription(String description) { this.description = description; }
     public String getGoal() { return goal; }
     public void setGoal(String goal) { this.goal = goal; }
+    public Integer getDaysPerWeek() { return daysPerWeek; }
+    public void setDaysPerWeek(Integer daysPerWeek) { this.daysPerWeek = daysPerWeek; }
     public User getInstructor() { return instructor; }
     public void setInstructor(User instructor) { this.instructor = instructor; }
     public Organization getOrganization() { return organization; }
     public void setOrganization(Organization organization) { this.organization = organization; }
+    public List<RoutineTemplateDay> getDays() { return days; }
+    public void setDays(List<RoutineTemplateDay> days) { this.days = days; }
     public List<RoutineExercise> getExercises() { return exercises; }
     public void setExercises(List<RoutineExercise> exercises) { this.exercises = exercises; }
     public boolean isActive() { return active; }

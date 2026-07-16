@@ -14,7 +14,7 @@ public class Reservation {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "activity_id", nullable = false)
+    @JoinColumn(name = "activity_id")
     private Activity activity;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -25,9 +25,13 @@ public class Reservation {
     @Column(nullable = false)
     private LocalDate occurrenceDate;
 
+    /** Nombre de la actividad al reservar (se conserva si se cancela y se desvincula). */
+    @Column(nullable = false)
+    private String activityName;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private ReservationStatus status = ReservationStatus.PENDING;
+    private ReservationStatus status = ReservationStatus.CONFIRMED;
 
     @Column(nullable = false)
     private boolean freeSlot = false;
@@ -54,6 +58,8 @@ public class Reservation {
     public void setMember(User member) { this.member = member; }
     public LocalDate getOccurrenceDate() { return occurrenceDate; }
     public void setOccurrenceDate(LocalDate occurrenceDate) { this.occurrenceDate = occurrenceDate; }
+    public String getActivityName() { return activityName; }
+    public void setActivityName(String activityName) { this.activityName = activityName; }
     public ReservationStatus getStatus() { return status; }
     public void setStatus(ReservationStatus status) { this.status = status; }
     public boolean isFreeSlot() { return freeSlot; }

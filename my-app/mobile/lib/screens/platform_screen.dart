@@ -4,8 +4,10 @@ import '../config/app_constants.dart';
 import '../providers/auth_provider.dart';
 import '../providers/layout_provider.dart';
 import '../services/api_service.dart';
+import '../utils/list_filter.dart';
 import '../widgets/app_sidebar.dart';
 import '../widgets/collapsible_sidebar_shell.dart';
+import '../widgets/list_filter_field.dart';
 
 class PlatformScreen extends StatefulWidget {
   const PlatformScreen({super.key});
@@ -19,6 +21,7 @@ class _PlatformScreenState extends State<PlatformScreen> {
   int? _selectedId;
   bool _loading = true;
   bool _saving = false;
+  String _filterQuery = '';
   final _scaffoldKey = GlobalKey<ScaffoldState>();
 
   final _nameCtrl = TextEditingController();
@@ -157,6 +160,8 @@ class _PlatformScreenState extends State<PlatformScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
+    final filtered = filterByQuery(_orgs, _filterQuery);
+
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(
@@ -172,7 +177,28 @@ class _PlatformScreenState extends State<PlatformScreen> {
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 16),
-          ..._orgs.map((org) {
+          if (_orgs.isNotEmpty)
+            ListFilterField(
+              onChanged: (v) => setState(() => _filterQuery = v),
+              resultCount: filtered.length,
+              totalCount: _orgs.length,
+            ),
+          if (_orgs.isEmpty)
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: Text('No hay clientes registrados.')),
+              ),
+            )
+          else if (filtered.isEmpty)
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: Text('Ningún resultado coincide con la búsqueda')),
+              ),
+            )
+          else
+            ...filtered.map((org) {
             final selected = _selectedId == org['id'];
             return Card(
               color: selected ? Theme.of(context).colorScheme.primaryContainer : null,

@@ -2,10 +2,9 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import './index.css'
-import { applyTheme } from './theme'
+import { applyPreferences, loadPreferences } from './preferences'
 
-const stored = localStorage.getItem('theme')
-applyTheme(stored === 'light' ? 'light' : 'dark')
+applyPreferences(loadPreferences())
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

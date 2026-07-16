@@ -1,1 +1,1 @@
-export { ADMIN_SECTIONS, DEFAULT_PASSWORD } from '../../navigation/sections'
+export { DEFAULT_PASSWORD } from '../../navigation/sections'

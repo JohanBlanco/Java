@@ -4,6 +4,8 @@ import '../config/app_constants.dart';
 import '../config/role_helper.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
+import '../utils/list_filter.dart';
+import '../widgets/list_filter_field.dart';
 import '../widgets/multi_select_field.dart';
 
 enum AdminSection { membresias, usuarios }
@@ -39,6 +41,7 @@ class _GymAdminScreenState extends State<GymAdminScreen> {
   List<dynamic> _packages = [];
   List<dynamic> _users = [];
   bool _loading = true;
+  String _listFilterQuery = '';
 
   int? _selectedPackageId;
   int? _selectedUserId;
@@ -104,6 +107,7 @@ class _GymAdminScreenState extends State<GymAdminScreen> {
   void _changeSection(AdminSection section) {
     setState(() {
       _section = section;
+      _listFilterQuery = '';
       _resetPackageForm();
       _resetUserForm();
     });
@@ -397,6 +401,7 @@ class _GymAdminScreenState extends State<GymAdminScreen> {
   }
 
   Widget _packagesContent() {
+    final filtered = filterByQuery(_packages, _listFilterQuery);
     final list = _packages.isEmpty
         ? const Padding(
             padding: EdgeInsets.all(16),
@@ -408,7 +413,21 @@ class _GymAdminScreenState extends State<GymAdminScreen> {
             ),
           )
         : Column(
-            children: _packages.map((p) {
+            children: [
+              ListFilterField(
+                onChanged: (v) => setState(() => _listFilterQuery = v),
+                resultCount: filtered.length,
+                totalCount: _packages.length,
+              ),
+              if (filtered.isEmpty)
+                const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: Text('Ningún resultado coincide con la búsqueda')),
+                  ),
+                )
+              else
+                ...filtered.map((p) {
               final id = (p['id'] as num).toInt();
               final addons = (p['addons'] as List<dynamic>?) ?? [];
               return _selectableCard(
@@ -434,7 +453,8 @@ class _GymAdminScreenState extends State<GymAdminScreen> {
                   trailing: Text('\$${p['price']}/mes'),
                 ),
               );
-            }).toList(),
+            }),
+            ],
           );
 
     final form = _formCard(
@@ -479,6 +499,20 @@ class _GymAdminScreenState extends State<GymAdminScreen> {
   }
 
   Widget _usersContent() {
+    final filtered = filterByQuery(
+      _users,
+      _listFilterQuery,
+      extraValues: (u) {
+        final user = u as Map<String, dynamic>;
+        final roles = RoleHelper.normalizeRoles(user);
+        final status = user['membershipStatus'] as String?;
+        return [
+          ...roles.map((role) => RoleHelper.roleLabels[role] ?? role),
+          if (status != null) RoleHelper.membershipStatusLabels[status] ?? status,
+          if (user['membershipPackageName'] != null) user['membershipPackageName'].toString(),
+        ];
+      },
+    );
     final list = _users.isEmpty
         ? const Padding(
             padding: EdgeInsets.all(16),
@@ -490,25 +524,71 @@ class _GymAdminScreenState extends State<GymAdminScreen> {
             ),
           )
         : Column(
-            children: _users.map((u) {
+            children: [
+              ListFilterField(
+                onChanged: (v) => setState(() => _listFilterQuery = v),
+                resultCount: filtered.length,
+                totalCount: _users.length,
+              ),
+              if (filtered.isEmpty)
+                const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: Text('Ningún resultado coincide con la búsqueda')),
+                  ),
+                )
+              else
+                ...filtered.map((u) {
               final id = (u['id'] as num).toInt();
+              final roles = RoleHelper.normalizeRoles(u as Map<String, dynamic>);
+              final isMember = roles.contains('MEMBER');
+              final membershipStatus = u['membershipStatus'] as String?;
+              final nextPaymentDate = u['nextPaymentDate'] as String?;
+              final packageName = u['membershipPackageName'] as String?;
+              final subtitleLines = <String>[u['email'] ?? ''];
+              if (isMember && membershipStatus == 'PAYMENT_PENDING') {
+                if (nextPaymentDate != null) {
+                  subtitleLines.add('Venció el ${RoleHelper.formatPaymentDate(nextPaymentDate)}');
+                }
+                subtitleLines.add('Plan: ${packageName?.isNotEmpty == true ? packageName : 'Sin plan asignado'}');
+              } else if (isMember && membershipStatus == 'ACTIVE') {
+                if (nextPaymentDate != null) {
+                  subtitleLines.add('Próximo pago: ${RoleHelper.formatPaymentDate(nextPaymentDate)}');
+                }
+                if (packageName != null && packageName.isNotEmpty) {
+                  subtitleLines.add('Plan: $packageName');
+                }
+              }
               return _selectableCard(
                 selected: _selectedUserId == id,
                 onTap: () => _selectUser(u as Map<String, dynamic>),
                 child: ListTile(
                   leading: const Icon(Icons.person_outline),
                   title: Text('${u['firstName']} ${u['lastName']}'),
-                  subtitle: Text(u['email'] ?? ''),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: subtitleLines.map((line) => Text(line)).toList(),
+                  ),
                   trailing: Wrap(
                     spacing: 4,
-                    children: RoleHelper.normalizeRoles(u as Map<String, dynamic>)
-                        .where((role) => RoleHelper.gymRoles.contains(role))
-                        .map((role) => Chip(label: Text(RoleHelper.roleLabels[role] ?? role)))
-                        .toList(),
+                    runSpacing: 4,
+                    children: [
+                      ...roles
+                          .where((role) => RoleHelper.gymRoles.contains(role))
+                          .map((role) => Chip(label: Text(RoleHelper.roleLabels[role] ?? role))),
+                      if (isMember && membershipStatus != null)
+                        Chip(
+                          label: Text(
+                            RoleHelper.membershipStatusLabels[membershipStatus] ?? membershipStatus,
+                            style: TextStyle(color: RoleHelper.membershipStatusColor(context, membershipStatus)),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               );
-            }).toList(),
+            }),
+            ],
           );
 
     final form = _formCard(

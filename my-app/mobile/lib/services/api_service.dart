@@ -48,8 +48,8 @@ class ApiService {
     return jsonDecode(response.body);
   }
 
-  Future<Map<String, dynamic>> login(String email, String password) async {
-    return await _request('POST', '/auth/login', body: {'email': email, 'password': password});
+  Future<Map<String, dynamic>> login(String login, String password) async {
+    return await _request('POST', '/auth/login', body: {'login': login, 'password': password});
   }
 
   Future<Map<String, dynamic>> getMe() async {
@@ -108,6 +108,10 @@ class ApiService {
     return await _request('GET', '/users/me/membership-usage');
   }
 
+  Future<List<dynamic>> getPendingMembershipPayment() async {
+    return await _request('GET', '/users/pending-membership-payment') ?? [];
+  }
+
   Future<List<dynamic>> getPendingPaymentReservations() async {
     return await _request('GET', '/reservations/pending-payment') ?? [];
   }
@@ -156,6 +160,25 @@ class ApiService {
 
   Future<Map<String, dynamic>> updateRoutineRequestStatus(int id, String status) async {
     return await _request('PUT', '/routine-requests/$id/status', body: {'status': status});
+  }
+
+  Future<Map<String, dynamic>> createAppointmentRequest(String type, String notes) async {
+    return await _request('POST', '/appointment-requests', body: {
+      'type': type,
+      if (notes.isNotEmpty) 'notes': notes,
+    });
+  }
+
+  Future<List<dynamic>> getAppointmentRequests() async {
+    return await _request('GET', '/appointment-requests') ?? [];
+  }
+
+  Future<List<dynamic>> getMyAppointmentRequests() async {
+    return await _request('GET', '/appointment-requests/me') ?? [];
+  }
+
+  Future<Map<String, dynamic>> updateAppointmentRequestStatus(int id, String status) async {
+    return await _request('PUT', '/appointment-requests/$id/status', body: {'status': status});
   }
 
   Future<List<dynamic>> getPlatformOrganizations() async {

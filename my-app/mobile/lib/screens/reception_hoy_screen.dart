@@ -27,7 +27,10 @@ class _ReceptionHoyScreenState extends State<ReceptionHoyScreen> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final data = await context.read<AuthProvider>().api.getActivities();
+      final data = await context.read<AuthProvider>().api.getActivities(
+            from: _todayIso,
+            to: _todayIso,
+          );
       if (mounted) setState(() { _activities = data; _loading = false; });
     } catch (_) {
       if (mounted) setState(() { _activities = []; _loading = false; });
@@ -38,17 +41,18 @@ class _ReceptionHoyScreenState extends State<ReceptionHoyScreen> {
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
 
-    final today = _activities.where((a) => a['activityDate'] == _todayIso).toList();
-
     return RefreshIndicator(
       onRefresh: _load,
-      child: today.isEmpty
-          ? ListView(children: const [SizedBox(height: 120), Center(child: Text('No hay actividades hoy'))])
+      child: _activities.isEmpty
+          ? ListView(children: const [
+              SizedBox(height: 120),
+              Center(child: Text('No hay actividades hoy')),
+            ])
           : ListView.builder(
               padding: const EdgeInsets.all(16),
-              itemCount: today.length,
+              itemCount: _activities.length,
               itemBuilder: (context, index) {
-                final a = today[index];
+                final a = _activities[index];
                 return Card(
                   margin: const EdgeInsets.only(bottom: 8),
                   child: ListTile(

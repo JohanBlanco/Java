@@ -18,5 +18,6 @@ public record ActivityRequest(
         Integer capacity,
         boolean recurring,
         List<String> repeatDays,
+        boolean allDay,
         Boolean confirmAffectedReservations
 ) {}

@@ -7,5 +7,7 @@ public record RoutineTemplateRequest(
         @NotBlank String name,
         String description,
         String goal,
+        Integer daysPerWeek,
+        List<RoutineDayRequest> days,
         List<RoutineExerciseRequest> exercises
 ) {}

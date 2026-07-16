@@ -76,21 +76,6 @@ export function getRangeForView(view: CalendarView, anchor: Date): { from: Date;
   return { from, to }
 }
 
-export function formatPeriodLabel(view: CalendarView, anchor: Date): string {
-  if (view === 'day') {
-    return anchor.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-  }
-  if (view === 'week') {
-    const from = startOfWeek(anchor)
-    const to = addDays(from, 6)
-    return `${from.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })} – ${to.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}`
-  }
-  if (view === 'month') {
-    return anchor.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })
-  }
-  return String(anchor.getFullYear())
-}
-
 export function shiftAnchor(view: CalendarView, anchor: Date, delta: number): Date {
   if (view === 'day') return addDays(anchor, delta)
   if (view === 'week') return addDays(anchor, delta * 7)

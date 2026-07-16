@@ -21,9 +21,10 @@ public record ActivityResponse(
         String instructorName,
         Integer capacity,
         long confirmedReservations,
-        long pendingReservations,
         boolean hasCapacity,
         boolean hasOccurrenceOverride,
+        boolean allDay,
         boolean active,
+        boolean occurrenceCancelled,
         Instant createdAt
 ) {}

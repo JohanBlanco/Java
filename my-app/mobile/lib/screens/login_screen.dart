@@ -12,7 +12,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController();
+  final _loginController = TextEditingController();
   final _passwordController = TextEditingController();
   String? _error;
   bool _loading = false;
@@ -21,7 +21,7 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() { _error = null; _loading = true; });
     try {
       await context.read<AuthProvider>().login(
-        _emailController.text.trim(),
+        _loginController.text.trim(),
         _passwordController.text,
       );
     } on ApiException catch (e) {
@@ -60,13 +60,13 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Text(_error!, style: const TextStyle(color: Colors.redAccent)),
                   ),
                 TextField(
-                  controller: _emailController,
+                  controller: _loginController,
                   decoration: const InputDecoration(
-                    labelText: 'Correo',
+                    labelText: 'Correo o cédula',
                     border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.email),
+                    prefixIcon: Icon(Icons.person_outline),
                   ),
-                  keyboardType: TextInputType.emailAddress,
+                  keyboardType: TextInputType.text,
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -97,10 +97,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Platform: admin@gymplatform.com / admin123\n'
-                  'Gym Owner: dueno@fitlife.com / ${AppConstants.defaultPassword}\n'
-                  'Instructor: instructor@fitlife.com / instructor123\n'
-                  'Miembro: miembro@fitlife.com / miembro123',
+                  'Platform: admin@gymplatform.com o 109990001 / admin123\n'
+                  'Gym Owner: dueno@fitlife.com o 104560123 / ${AppConstants.defaultPassword}\n'
+                  'Instructor: instructor@fitlife.com o 203451234 / instructor123\n'
+                  'Recepcionista: recepcion@fitlife.com o 305672345 / recepcion123\n'
+                  'Miembro: miembro@fitlife.com o 190205678 / miembro123',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],

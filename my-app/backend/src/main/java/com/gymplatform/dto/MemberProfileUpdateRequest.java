@@ -5,5 +5,6 @@ public record MemberProfileUpdateRequest(
         Integer age,
         String goals,
         String phone,
-        String emergencyContact
+        String emergencyContact,
+        String nationalId
 ) {}

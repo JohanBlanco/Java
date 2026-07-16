@@ -39,6 +39,12 @@ public class Routine {
     @Column(nullable = false)
     private boolean temporary = false;
 
+    private Integer daysPerWeek;
+
+    @OneToMany(mappedBy = "routine", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("orderIndex ASC")
+    private List<RoutineDay> days = new ArrayList<>();
+
     @OneToMany(mappedBy = "routine", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("orderIndex ASC")
     private List<RoutineExercise> exercises = new ArrayList<>();
@@ -67,6 +73,10 @@ public class Routine {
     public void setOrganization(Organization organization) { this.organization = organization; }
     public boolean isTemporary() { return temporary; }
     public void setTemporary(boolean temporary) { this.temporary = temporary; }
+    public Integer getDaysPerWeek() { return daysPerWeek; }
+    public void setDaysPerWeek(Integer daysPerWeek) { this.daysPerWeek = daysPerWeek; }
+    public List<RoutineDay> getDays() { return days; }
+    public void setDays(List<RoutineDay> days) { this.days = days; }
     public List<RoutineExercise> getExercises() { return exercises; }
     public void setExercises(List<RoutineExercise> exercises) { this.exercises = exercises; }
     public boolean isActive() { return active; }

@@ -22,6 +22,13 @@ public class MembershipPackage {
     @Column(nullable = false)
     private BigDecimal price;
 
+    /** Si true, se suma I.V.A. sobre el precio base al vender. */
+    @Column(nullable = false)
+    private boolean applyIva = false;
+
+    @Column(precision = 7, scale = 2)
+    private BigDecimal ivaPercent;
+
     @Column(nullable = false)
     private int durationMonths = 1;
 
@@ -49,6 +56,10 @@ public class MembershipPackage {
     public void setDescription(String description) { this.description = description; }
     public BigDecimal getPrice() { return price; }
     public void setPrice(BigDecimal price) { this.price = price; }
+    public boolean isApplyIva() { return applyIva; }
+    public void setApplyIva(boolean applyIva) { this.applyIva = applyIva; }
+    public BigDecimal getIvaPercent() { return ivaPercent; }
+    public void setIvaPercent(BigDecimal ivaPercent) { this.ivaPercent = ivaPercent; }
     public int getDurationMonths() { return durationMonths; }
     public void setDurationMonths(int durationMonths) { this.durationMonths = durationMonths; }
     public Integer getFreeActivityQuota() { return freeActivityQuota; }

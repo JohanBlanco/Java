@@ -36,10 +36,33 @@ public final class ActivityRecurrenceUtil {
                 .collect(Collectors.joining(","));
     }
 
+    public static void validateRepeatDays(List<String> repeatDays) {
+        if (repeatDays == null || repeatDays.isEmpty()) {
+            return;
+        }
+        for (String day : repeatDays) {
+            if (day == null || day.isBlank()) {
+                throw new IllegalArgumentException("Día de la semana vacío");
+            }
+            try {
+                DayOfWeek.valueOf(day.trim().toUpperCase());
+            } catch (IllegalArgumentException ex) {
+                throw new IllegalArgumentException("Día de la semana inválido: " + day.trim());
+            }
+        }
+    }
+
     public static Set<DayOfWeek> toDayOfWeekSet(List<String> repeatDays) {
         Set<DayOfWeek> result = new LinkedHashSet<>();
         for (String day : repeatDays) {
-            result.add(DayOfWeek.valueOf(day.toUpperCase()));
+            if (day == null || day.isBlank()) {
+                continue;
+            }
+            try {
+                result.add(DayOfWeek.valueOf(day.trim().toUpperCase()));
+            } catch (IllegalArgumentException ignored) {
+                // Ignorar días corruptos en datos legacy al expandir ocurrencias
+            }
         }
         return result;
     }

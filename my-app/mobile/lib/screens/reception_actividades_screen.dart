@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
+import '../utils/date_format.dart';
 
 const _weekdays = [
   ('MONDAY', 'Lun'),
@@ -114,9 +115,11 @@ class _ReceptionActividadesScreenState extends State<ReceptionActividadesScreen>
       final days = ((a['repeatDays'] as List<dynamic>?) ?? [])
           .map((d) => _weekdays.firstWhere((w) => w.$1 == d, orElse: () => ('', '$d')).$2)
           .join(', ');
-      return '${a['startDate']} → ${a['endDate']} · $days';
+      final start = AppDateFormat.formatIsoDate(a['startDate'] as String?) ?? '';
+      final end = AppDateFormat.formatIsoDate(a['endDate'] as String?) ?? '';
+      return '$start → $end · $days';
     }
-    return '${a['startDate'] ?? a['activityDate']}';
+    return AppDateFormat.formatIsoDate((a['startDate'] ?? a['activityDate']) as String?) ?? '';
   }
 
   Map<String, dynamic> _buildPayload({bool confirmAffectedReservations = false}) => {
@@ -126,7 +129,7 @@ class _ReceptionActividadesScreenState extends State<ReceptionActividadesScreen>
         'startDate': _startDate.text.trim(),
         'endDate': _recurring ? _endDate.text.trim() : _startDate.text.trim(),
         'startTime': _startTime.text.trim(),
-        'endTime': _endTime.text.trim(),
+        'endTime': _endTime.text.trim().isEmpty ? null : _endTime.text.trim(),
         'capacity': _unlimitedCapacity ? null : int.tryParse(_capacity.text),
         'recurring': _recurring,
         'repeatDays': _recurring ? _repeatDays.toList() : <String>[],
@@ -164,6 +167,10 @@ class _ReceptionActividadesScreenState extends State<ReceptionActividadesScreen>
   }
 
   Future<void> _save() async {
+    if (_recurring && _endDate.text.trim().isEmpty) {
+      _showError('Indica la fecha de fin para actividades recurrentes');
+      return;
+    }
     if (_recurring && _repeatDays.isEmpty) {
       _showError('Selecciona al menos un día de la semana');
       return;
@@ -273,7 +280,7 @@ class _ReceptionActividadesScreenState extends State<ReceptionActividadesScreen>
                       Text('${_formatSeries(a)} · ${_timeShort(a['startTime'])} - ${_timeShort(a['endTime'])}'),
                       Text(a['locationName'] ?? ''),
                       Text(
-                        'Cupo: ${a['capacity'] ?? 'Ilimitado'} · ${((a['confirmedReservations'] as num?) ?? 0).toInt() + ((a['pendingReservations'] as num?) ?? 0).toInt()} reservaciones activas',
+                        'Cupo: ${a['capacity'] ?? 'Ilimitado'} · ${((a['confirmedReservations'] as num?) ?? 0).toInt()} reservaciones activas',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],

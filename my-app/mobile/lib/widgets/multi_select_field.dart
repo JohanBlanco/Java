@@ -37,12 +37,14 @@ class MultiSelectField extends StatelessWidget {
                     : ListView(
                         shrinkWrap: true,
                         children: options.entries.map((entry) {
-                          return CheckboxListTile(
+                          return SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            controlAffinity: ListTileControlAffinity.trailing,
                             value: temp.contains(entry.key),
                             title: Text(entry.value),
                             onChanged: (checked) {
                               setDialogState(() {
-                                if (checked == true) {
+                                if (checked) {
                                   temp.add(entry.key);
                                 } else {
                                   temp.remove(entry.key);
@@ -134,12 +136,14 @@ class MultiSelectFieldInt extends StatelessWidget {
                     : ListView(
                         shrinkWrap: true,
                         children: options.entries.map((entry) {
-                          return CheckboxListTile(
+                          return SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            controlAffinity: ListTileControlAffinity.trailing,
                             value: temp.contains(entry.key),
                             title: Text(entry.value),
                             onChanged: (checked) {
                               setDialogState(() {
-                                if (checked == true) {
+                                if (checked) {
                                   temp.add(entry.key);
                                 } else {
                                   temp.remove(entry.key);

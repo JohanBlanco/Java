@@ -7,7 +7,7 @@ import com.gymplatform.domain.entity.Reservation;
 import com.gymplatform.domain.enums.ReservationStatus;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 import org.springframework.data.repository.query.Param;
@@ -67,7 +67,9 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 
             AND r.paid = false
 
-            AND r.status <> com.gymplatform.domain.enums.ReservationStatus.CANCELLED
+            AND r.status = com.gymplatform.domain.enums.ReservationStatus.CONFIRMED
+
+            AND r.activity IS NOT NULL
 
             ORDER BY r.createdAt ASC
 
@@ -112,6 +114,10 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
             """)
 
     List<Reservation> findByOrganizationId(@Param("orgId") Long orgId);
+
+    @Modifying
+    @Query("DELETE FROM Reservation r WHERE r.activity.id = :activityId")
+    void deleteByActivityId(@Param("activityId") Long activityId);
 
 }
 

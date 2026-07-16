@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../utils/list_filter.dart';
+import '../widgets/list_filter_field.dart';
 
 class RoutinesScreen extends StatefulWidget {
   final bool isStaff;
@@ -14,6 +16,7 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
   List<dynamic> _routines = [];
   List<dynamic> _requests = [];
   bool _loading = true;
+  String _filterQuery = '';
 
   @override
   void initState() {
@@ -73,13 +76,29 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
       );
     }
 
+    final filtered = filterByQuery(_routines, _filterQuery);
+
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
-        itemCount: _routines.length,
+        itemCount: filtered.isEmpty ? 2 : filtered.length + 1,
         itemBuilder: (context, index) {
-          final r = _routines[index];
+          if (index == 0) {
+            return ListFilterField(
+              onChanged: (v) => setState(() => _filterQuery = v),
+              resultCount: filtered.length,
+              totalCount: _routines.length,
+            );
+          }
+          if (filtered.isEmpty) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(child: Text('Ningún resultado coincide con la búsqueda')),
+            );
+          }
+
+          final r = filtered[index - 1];
           final exercises = r['exercises'] as List<dynamic>? ?? [];
 
           return Card(
@@ -106,13 +125,29 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
       return const Center(child: Text('Sin solicitudes de rutina'));
     }
 
+    final filtered = filterByQuery(_requests, _filterQuery);
+
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
-        itemCount: _requests.length,
+        itemCount: filtered.isEmpty ? 2 : filtered.length + 1,
         itemBuilder: (context, index) {
-          final r = _requests[index];
+          if (index == 0) {
+            return ListFilterField(
+              onChanged: (v) => setState(() => _filterQuery = v),
+              resultCount: filtered.length,
+              totalCount: _requests.length,
+            );
+          }
+          if (filtered.isEmpty) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(child: Text('Ningún resultado coincide con la búsqueda')),
+            );
+          }
+
+          final r = filtered[index - 1];
 
           return Card(
             margin: const EdgeInsets.only(bottom: 12),

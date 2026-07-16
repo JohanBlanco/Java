@@ -61,6 +61,10 @@ export function canViewReception(activeRole: string | null | undefined): boolean
   return activeRole != null && ['GYM_OWNER', 'RECEPTIONIST'].includes(activeRole)
 }
 
+export function canViewTrainingAdmin(activeRole: string | null | undefined): boolean {
+  return activeRole != null && ['GYM_OWNER', 'RECEPTIONIST', 'INSTRUCTOR'].includes(activeRole)
+}
+
 export const canViewVentas = canViewReception
 export const canViewEstadisticas = canViewReception
 
@@ -83,4 +87,23 @@ export function isStaffView(activeRole: string | null | undefined): boolean {
 export function profileLabel(activeRole: string | null | undefined): string {
   if (!activeRole) return 'Usuario'
   return ROLE_LABELS[activeRole as AppRole] ?? activeRole
+}
+
+export const MEMBERSHIP_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: 'Activo',
+  PAYMENT_PENDING: 'Pendiente de pago',
+  INACTIVE: 'Inactivo',
+}
+
+export function membershipStatusBadgeClass(status: string | null | undefined): string {
+  switch (status) {
+    case 'ACTIVE':
+      return 'badge-active'
+    case 'PAYMENT_PENDING':
+      return 'badge-pending'
+    case 'INACTIVE':
+      return 'badge-cancelled'
+    default:
+      return 'badge-cancelled'
+  }
 }

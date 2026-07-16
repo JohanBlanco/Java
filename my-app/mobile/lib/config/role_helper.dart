@@ -1,3 +1,7 @@
+import 'package:flutter/material.dart';
+
+import '../utils/date_format.dart';
+
 class RoleHelper {
   static const roleLabels = {
     'GYM_OWNER': 'Admin',
@@ -90,4 +94,21 @@ class RoleHelper {
     if (activeRole == null) return 'Usuario';
     return roleLabels[activeRole] ?? activeRole;
   }
+
+  static const membershipStatusLabels = {
+    'ACTIVE': 'Activo',
+    'PAYMENT_PENDING': 'Pendiente de pago',
+    'INACTIVE': 'Inactivo',
+  };
+
+  static Color membershipStatusColor(BuildContext context, String? status) {
+    final scheme = Theme.of(context).colorScheme;
+    return switch (status) {
+      'ACTIVE' => scheme.primary,
+      'PAYMENT_PENDING' => scheme.tertiary,
+      _ => scheme.error,
+    };
+  }
+
+  static String? formatPaymentDate(String? date) => AppDateFormat.formatIsoDate(date);
 }

@@ -20,6 +20,8 @@ public class MemberProfile {
     private String goals;
     private String phone;
     private String emergencyContact;
+    @Column(length = 32)
+    private String nationalId;
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
@@ -40,6 +42,8 @@ public class MemberProfile {
     public void setPhone(String phone) { this.phone = phone; }
     public String getEmergencyContact() { return emergencyContact; }
     public void setEmergencyContact(String emergencyContact) { this.emergencyContact = emergencyContact; }
+    public String getNationalId() { return nationalId; }
+    public void setNationalId(String nationalId) { this.nationalId = nationalId; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }

@@ -1,86 +1,121 @@
-import { useEffect, useState } from 'react'
-import { api, ApiError } from '../api'
-import type { Activity, MembershipUsage, Reservation, Routine, RoutineRequest } from '../types'
+import { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { api } from '../api'
+import type { Activity, AppointmentRequest, MembershipUsage, RoutineRequest, User } from '../types'
 import { useAuth } from '../auth'
-import { isMemberView, isStaffView, profileLabel } from '../roles'
+import { canViewReception, isMemberView, isStaffView, profileLabel } from '../roles'
+import { bookedAppointmentsForDay, rangeToQuery } from '../utils/appointmentCalendarUtils'
+import { toIsoDate } from '../utils/calendarUtils'
+import { isRoutineRequestOpen } from '../utils/routineRequest'
+import TodayActivitiesPanel from '../components/dashboard/TodayActivitiesPanel'
+import RoutineRequestsPanel from '../components/dashboard/RoutineRequestsPanel'
+import TodayAppointmentsPanel from '../components/dashboard/TodayAppointmentsPanel'
+
+import PendingPaymentsPanel from '../components/dashboard/PendingPaymentsPanel'
+
+type OpsPanel = 'actividades-hoy' | 'pendientes-de-pago' | 'solicitudes-rutina' | 'solicitudes-citas'
+
+const PANEL_LABELS: Record<OpsPanel, string> = {
+  'pendientes-de-pago': 'Pendientes de pago',
+  'solicitudes-citas': 'Citas del día',
+  'actividades-hoy': 'Actividades del día',
+  'solicitudes-rutina': 'Solicitudes de rutina',
+}
+
+const OPS_PANEL_ORDER: OpsPanel[] = [
+  'pendientes-de-pago',
+  'solicitudes-citas',
+  'actividades-hoy',
+  'solicitudes-rutina',
+]
 
 export default function DashboardPage() {
   const { user, activeRole } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [activities, setActivities] = useState<Activity[]>([])
-  const [reservations, setReservations] = useState<Reservation[]>([])
   const [membershipUsage, setMembershipUsage] = useState<MembershipUsage | null>(null)
-  const [routines, setRoutines] = useState<Routine[]>([])
-  const [requests, setRequests] = useState<RoutineRequest[]>([])
+  const [routinesCount, setRoutinesCount] = useState(0)
+  const [reservationsCount, setReservationsCount] = useState(0)
+  const [routineRequests, setRoutineRequests] = useState<RoutineRequest[]>([])
+  const [appointmentRequests, setAppointmentRequests] = useState<AppointmentRequest[]>([])
+  const [pendingPayments, setPendingPayments] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
 
   const isMember = isMemberView(activeRole)
   const isStaff = isStaffView(activeRole)
+  const showOpsHome = canViewReception(activeRole)
 
-  const refreshMemberData = async () => {
-    const [updatedReservations, usage] = await Promise.all([
-      api.getMyReservations(),
-      api.getMyMembershipUsage(),
-    ])
-    setReservations(updatedReservations)
-    setMembershipUsage(usage)
+  const panelParam = searchParams.get('panel') as OpsPanel | null
+  const defaultPanel: OpsPanel = showOpsHome ? 'pendientes-de-pago' : 'solicitudes-rutina'
+  const activePanel: OpsPanel = panelParam && PANEL_LABELS[panelParam] ? panelParam : defaultPanel
+
+  const setPanel = (panel: OpsPanel) => {
+    setSearchParams(panel === defaultPanel ? {} : { panel }, { replace: true })
   }
+
+  const refreshCounts = useCallback(() => {
+    const todayIso = toIsoDate(new Date())
+    const promises: Promise<void>[] = []
+
+    if (showOpsHome) {
+      promises.push(api.getActivities(todayIso, todayIso).then(setActivities).catch(() => {}))
+      promises.push(api.getPendingMembershipPayment().then(setPendingPayments).catch(() => {}))
+      promises.push(api.getRoutineRequests().then(setRoutineRequests).catch(() => {}))
+      promises.push(
+        api.getAppointmentRequests(rangeToQuery(new Date(), new Date())).then(setAppointmentRequests).catch(() => {}),
+      )
+    } else if (isStaff) {
+      promises.push(api.getRoutineRequests().then(setRoutineRequests).catch(() => {}))
+    }
+
+    return Promise.all(promises)
+  }, [showOpsHome, isStaff])
 
   useEffect(() => {
     const promises: Promise<void>[] = []
+    const todayIso = toIsoDate(new Date())
 
-    promises.push(api.getActivities().then(setActivities).catch(() => {}))
-    if (isMember) {
-      promises.push(refreshMemberData().catch(() => {}))
-      promises.push(api.getMyRoutines().then(setRoutines).catch(() => {}))
-    }
-    if (isStaff) {
-      promises.push(api.getRoutineRequests().then(setRequests).catch(() => {}))
+    if (showOpsHome) {
+      promises.push(api.getActivities(todayIso, todayIso).then(setActivities).catch(() => {}))
+      promises.push(api.getPendingMembershipPayment().then(setPendingPayments).catch(() => {}))
+      promises.push(api.getRoutineRequests().then(setRoutineRequests).catch(() => {}))
+      promises.push(
+        api.getAppointmentRequests(rangeToQuery(new Date(), new Date())).then(setAppointmentRequests).catch(() => {}),
+      )
+    } else if (isMember) {
+      promises.push(api.getActivities().then(setActivities).catch(() => {}))
+      promises.push(
+        api.getMyReservations()
+          .then((rows) => setReservationsCount(rows.filter((r) => r.status !== 'CANCELLED').length))
+          .catch(() => {}),
+      )
+      promises.push(api.getMyMembershipUsage().then(setMembershipUsage).catch(() => {}))
+      promises.push(api.getMyRoutines().then((rows) => setRoutinesCount(rows.length)).catch(() => {}))
+    } else if (isStaff) {
+      promises.push(api.getRoutineRequests().then(setRoutineRequests).catch(() => {}))
     }
 
     Promise.all(promises).finally(() => setLoading(false))
-  }, [isMember, isStaff])
-
-  const handleReserve = async (activity: Activity) => {
-    const occurrenceDate = activity.activityDate
-    try {
-      await api.createReservation(activity.id, { occurrenceDate })
-      await refreshMemberData()
-    } catch (e) {
-      if (e instanceof ApiError && e.message.includes('Debes pagar en recepción')) {
-        const pay = window.confirm(`${e.message}\n\n¿Deseas reservar y pagar en recepción?`)
-        if (pay) {
-          await api.createReservation(activity.id, { payAtReception: true, occurrenceDate })
-          await refreshMemberData()
-        }
-      } else {
-        alert(e instanceof ApiError ? e.message : 'Error al reservar')
-      }
-    }
-  }
-
-  const handleConfirm = async (id: number) => {
-    try {
-      await api.confirmReservation(id)
-      await refreshMemberData()
-    } catch (e) {
-      alert(e instanceof ApiError ? e.message : 'Error al confirmar')
-    }
-  }
-
-  const handleCancel = async (id: number) => {
-    await api.cancelReservation(id)
-    await refreshMemberData()
-  }
-
-  const handleRequestRoutine = async () => {
-    await api.createRoutineRequest({
-      description: 'Necesito una rutina personalizada',
-      goals: 'Mejorar fuerza y resistencia',
-    })
-    if (isStaff) setRequests(await api.getRoutineRequests())
-  }
+  }, [isMember, isStaff, showOpsHome])
 
   if (loading) return <p>Cargando...</p>
+
+  const pendingRoutineCount = routineRequests.filter((r) => isRoutineRequestOpen(r.status)).length
+  const todayAppointmentCount = bookedAppointmentsForDay(appointmentRequests, new Date()).length
+
+  const todayActivityCount = activities.filter((a) => a.activityDate === toIsoDate(new Date()) && a.active !== false).length
+
+  const statCard = (panel: OpsPanel, value: number, label: string) => (
+    <button
+      key={panel}
+      type="button"
+      className={`card stat-card stat-card-action${activePanel === panel ? ' active' : ''}`}
+      onClick={() => setPanel(panel)}
+    >
+      <div className="value">{value}</div>
+      <div className="label">{label}</div>
+    </button>
+  )
 
   return (
     <div>
@@ -105,155 +140,62 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <div className="grid grid-3" style={{ marginBottom: '2rem' }}>
-        <div className="card stat-card">
-          <div className="value">{activities.length}</div>
-          <div className="label">Actividades</div>
-        </div>
-        {isMember && (
-          <>
-            <div className="card stat-card">
-              <div className="value">{reservations.filter(r => r.status !== 'CANCELLED').length}</div>
-              <div className="label">Mis reservaciones</div>
-            </div>
-            <div className="card stat-card">
-              <div className="value">{routines.length}</div>
-              <div className="label">Mis rutinas</div>
-            </div>
-          </>
-        )}
-        {isStaff && (
-          <div className="card stat-card">
-            <div className="value">{requests.filter(r => r.status === 'PENDING').length}</div>
-            <div className="label">Solicitudes pendientes</div>
-          </div>
-        )}
-      </div>
-
-      <h2 style={{ marginBottom: '1rem' }}>Actividades</h2>
-      <div className="grid grid-2" style={{ marginBottom: '2rem' }}>
-        {activities.length === 0 ? (
-          <div className="empty-state card">No hay actividades programadas</div>
-        ) : activities.map((a) => (
-          <div key={`${a.id}-${a.activityDate}`} className="card">
-            <h3>{a.name}</h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-              {a.activityDate} · {a.startTime} - {a.endTime}
-            </p>
-            <p style={{ fontSize: '0.9rem' }}>{a.locationName}</p>
-            {a.description && (
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>{a.description}</p>
-            )}
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Cupo: {a.capacity ?? 'Ilimitado'} · {a.confirmedReservations} confirmados
-            </p>
-            {isMember && a.hasCapacity && (
-              <button className="btn-primary" style={{ marginTop: '0.75rem' }} onClick={() => handleReserve(a)}>
-                Reservar
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {isMember && (
+      {showOpsHome && (
         <>
-          <h2 style={{ marginBottom: '1rem' }}>Mis reservaciones</h2>
-          <div className="grid grid-2" style={{ marginBottom: '2rem' }}>
-            {reservations.length === 0 ? (
-              <div className="empty-state card">Sin reservaciones</div>
-            ) : reservations.map((r) => (
-              <div key={r.id} className="card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  <h3>{r.activityName}</h3>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{r.occurrenceDate}</p>
-                  <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-                    <span className={`badge badge-${r.status.toLowerCase()}`}>{r.status}</span>
-                    {r.freeSlot && r.status !== 'CANCELLED' && (
-                      <span className="badge badge-confirmed">Gratis</span>
-                    )}
-                    {r.paymentRequired && !r.paid && r.status !== 'CANCELLED' && (
-                      <span className="badge badge-pending">Pago pendiente</span>
-                    )}
-                  </div>
-                </div>
-                {r.status === 'PENDING' && (
-                  <div className="actions">
-                    {r.paymentRequired && !r.paid ? (
-                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                        Paga en recepción para confirmar tu cupo.
-                      </p>
-                    ) : (
-                      <button className="btn-primary" onClick={() => handleConfirm(r.id)}>Confirmar</button>
-                    )}
-                    <button className="btn-danger" onClick={() => handleCancel(r.id)}>Cancelar</button>
-                  </div>
-                )}
-                {r.status === 'CONFIRMED' && (
-                  <button className="btn-danger" style={{ marginTop: '0.75rem' }} onClick={() => handleCancel(r.id)}>
-                    Cancelar
-                  </button>
-                )}
-              </div>
-            ))}
+          <div className="grid grid-2 grid-ops-stats" style={{ marginBottom: '1.5rem' }}>
+            {OPS_PANEL_ORDER.map((panel) => {
+              const values: Record<OpsPanel, number> = {
+                'pendientes-de-pago': pendingPayments.length,
+                'solicitudes-citas': todayAppointmentCount,
+                'actividades-hoy': todayActivityCount,
+                'solicitudes-rutina': pendingRoutineCount,
+              }
+              return statCard(panel, values[panel], PANEL_LABELS[panel])
+            })}
           </div>
-
-          <h2 style={{ marginBottom: '1rem' }}>Mis rutinas</h2>
-          <div className="grid grid-2" style={{ marginBottom: '2rem' }}>
-            {routines.length === 0 ? (
-              <div className="empty-state card">
-                <p>No tienes rutinas asignadas</p>
-                <button className="btn-primary" style={{ marginTop: '1rem' }} onClick={handleRequestRoutine}>
-                  Solicitar rutina
-                </button>
-              </div>
-            ) : routines.map((r) => (
-              <div key={r.id} className="card">
-                <h3>{r.name}</h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                  Instructor: {r.instructorName} {r.temporary && '(Temporal)'}
-                </p>
-                <ul style={{ marginTop: '0.75rem', paddingLeft: '1.25rem', fontSize: '0.9rem' }}>
-                  {r.exercises.map((ex) => (
-                    <li key={ex.id}>{ex.exerciseName} — {ex.sets}x{ex.reps}</li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+          <div className="dashboard-panel card">
+            <h2 className="section-title">{PANEL_LABELS[activePanel]}</h2>
+            {activePanel === 'pendientes-de-pago' && <PendingPaymentsPanel />}
+            {activePanel === 'solicitudes-citas' && (
+              <TodayAppointmentsPanel onChanged={() => { refreshCounts() }} />
+            )}
+            {activePanel === 'actividades-hoy' && (
+              <TodayActivitiesPanel onChanged={() => { refreshCounts() }} />
+            )}
+            {activePanel === 'solicitudes-rutina' && (
+              <RoutineRequestsPanel onChanged={() => { refreshCounts() }} />
+            )}
           </div>
         </>
       )}
 
-      {isStaff && (
+      {isStaff && !showOpsHome && (
         <>
-          <h2 style={{ marginBottom: '1rem' }}>Solicitudes de rutina</h2>
-          <div className="grid grid-2">
-            {requests.length === 0 ? (
-              <div className="empty-state card">Sin solicitudes</div>
-            ) : requests.map((r) => (
-              <div key={r.id} className="card">
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <h3>{r.memberName}</h3>
-                  <span className={`badge badge-${r.status === 'PENDING' ? 'pending' : 'confirmed'}`}>{r.status}</span>
-                </div>
-                <p style={{ fontSize: '0.9rem', marginTop: '0.5rem' }}>{r.description}</p>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Objetivos: {r.goals}</p>
-                {r.status === 'PENDING' && (
-                  <button
-                    className="btn-primary"
-                    style={{ marginTop: '0.75rem' }}
-                    onClick={async () => {
-                      await api.updateRoutineRequestStatus(r.id, 'IN_PROGRESS')
-                      setRequests(await api.getRoutineRequests())
-                    }}
-                  >
-                    Tomar solicitud
-                  </button>
-                )}
-              </div>
-            ))}
+          <div className="grid grid-3" style={{ marginBottom: '1.5rem' }}>
+            {statCard('solicitudes-rutina', pendingRoutineCount, 'Solicitudes pendientes')}
+          </div>
+          <div className="dashboard-panel card">
+            <h2 className="section-title">{PANEL_LABELS['solicitudes-rutina']}</h2>
+            <RoutineRequestsPanel onChanged={() => { refreshCounts() }} />
           </div>
         </>
+      )}
+
+      {isMember && (
+        <div className="grid grid-3">
+          <div className="card stat-card">
+            <div className="value">{activities.length}</div>
+            <div className="label">Actividades</div>
+          </div>
+          <div className="card stat-card">
+            <div className="value">{reservationsCount}</div>
+            <div className="label">Mis reservaciones</div>
+          </div>
+          <div className="card stat-card">
+            <div className="value">{routinesCount}</div>
+            <div className="label">Mis rutinas</div>
+          </div>
+        </div>
       )}
     </div>
   )
