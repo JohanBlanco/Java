@@ -56,10 +56,31 @@ public class DemoSqlSeeder implements ApplicationRunner {
 
         ensureFitLifeIndigo();
         ensurePrivateAreasPassword();
+        ensureAdminEmailAndDisablePlatform();
         ensureSalesDemo();
         ensureMemberDemo();
         ensureMemberStaffDemo();
+        ensureLiveActivityPromotions();
         printHints();
+    }
+
+    /** Renombra dueño→admin y desactiva cuenta PLATFORM_OWNER en DBs ya existentes. */
+    private void ensureAdminEmailAndDisablePlatform() {
+        int renamed = jdbc.update(
+                "UPDATE users SET email = 'admin@fitlife.com' WHERE email = 'dueno@fitlife.com'");
+        if (renamed > 0) {
+            log.info("Email demo renombrado: dueno@fitlife.com → admin@fitlife.com");
+        }
+        int disabled = jdbc.update(
+                "UPDATE users SET active = FALSE WHERE email = 'admin@gymplatform.com'");
+        disabled += jdbc.update(
+                """
+                UPDATE users SET active = FALSE
+                WHERE id IN (SELECT ur.user_id FROM user_roles ur WHERE ur.role = 'PLATFORM_OWNER')
+                """);
+        if (disabled > 0) {
+            log.info("Cuentas PLATFORM_OWNER desactivadas ({})", disabled);
+        }
     }
 
     private void ensureSalesDemo() {
@@ -95,7 +116,7 @@ public class DemoSqlSeeder implements ApplicationRunner {
         runScript(SCRIPT_MEMBER);
     }
 
-    /** Datos para dueño/recepción al usar perfil Miembro (switch de roles). */
+    /** Datos para administrador/recepción al usar perfil Miembro (switch de roles). */
     private void ensureMemberStaffDemo() {
         Long orgId = fitLifeOrgId();
         if (orgId == null) {
@@ -105,14 +126,80 @@ public class DemoSqlSeeder implements ApplicationRunner {
                 """
                 SELECT COUNT(*) FROM routines r
                 JOIN users u ON u.id = r.member_id
-                WHERE u.email = 'dueno@fitlife.com'
+                WHERE u.email IN ('admin@fitlife.com', 'dueno@fitlife.com')
                 """,
                 Integer.class);
         if (routines != null && routines > 0) {
-            log.info("Demo miembro-staff omitido: ya hay rutinas para dueno@fitlife.com");
+            log.info("Demo miembro-staff omitido: ya hay rutinas para admin@fitlife.com");
             return;
         }
         runScript(SCRIPT_MEMBER_STAFF);
+    }
+
+    /**
+     * Asegura que el carrusel del miembro tenga promociones con actividades vigentes.
+     * Corrige seeds viejos (slot 0 / actividades de un solo día ya vencidas).
+     */
+    private void ensureLiveActivityPromotions() {
+        Long orgId = fitLifeOrgId();
+        if (orgId == null) {
+            return;
+        }
+        Integer live = jdbc.queryForObject(
+                """
+                SELECT COUNT(*) FROM activity_promotions p
+                JOIN activities a ON a.id = p.activity_id
+                WHERE p.organization_id = ?
+                  AND a.active = TRUE
+                  AND a.end_date >= CURRENT_DATE
+                  AND (
+                    (a.recurring = TRUE AND a.repeat_days IS NOT NULL AND TRIM(a.repeat_days) <> '')
+                    OR a.start_date >= CURRENT_DATE
+                  )
+                """,
+                Integer.class,
+                orgId);
+        if (live != null && live > 0) {
+            log.info("Promociones de actividades OK ({} con próxima fecha)", live);
+            return;
+        }
+
+        // Vaciar y recrear slots 1–3 con Pilates / Yoga / HIIT (ids demo 12, 9, 10)
+        jdbc.update("DELETE FROM activity_promotions WHERE organization_id = ?", orgId);
+        Integer pilates = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM activities WHERE id = 12 AND organization_id = ?", Integer.class, orgId);
+        Integer yoga = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM activities WHERE id = 9 AND organization_id = ?", Integer.class, orgId);
+        Integer hiit = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM activities WHERE id = 10 AND organization_id = ?", Integer.class, orgId);
+        if (pilates == null || pilates == 0 || yoga == null || yoga == 0 || hiit == null || hiit == 0) {
+            log.warn("No se pudieron restaurar promociones demo: faltan actividades 9/10/12");
+            return;
+        }
+        // Extender vigencia por si las fechas demo ya pasaron
+        jdbc.update(
+                """
+                UPDATE activities SET
+                  end_date = CASE
+                    WHEN end_date < DATEADD('MONTH', 1, CURRENT_DATE)
+                    THEN DATEADD('MONTH', 1, CURRENT_DATE) ELSE end_date END,
+                  start_date = CASE
+                    WHEN recurring = FALSE AND start_date < CURRENT_DATE
+                    THEN CURRENT_DATE ELSE start_date END
+                WHERE id IN (9, 10, 12) AND organization_id = ?
+                """,
+                orgId);
+        jdbc.update(
+                """
+                INSERT INTO activity_promotions
+                  (organization_id, activity_id, slot_index, image_url, created_at, updated_at)
+                VALUES
+                  (?, 12, 1, '/uploads/marketing/promo-pilates.jpg', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                  (?, 9, 2, '/uploads/marketing/promo-yoga.jpg', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+                  (?, 10, 3, '/uploads/marketing/promo-hiit.jpg', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """,
+                orgId, orgId, orgId);
+        log.info("Promociones de actividades demo restauradas (Pilates, Yoga, HIIT)");
     }
 
     private void ensurePrivateAreasPassword() {
@@ -181,13 +268,12 @@ public class DemoSqlSeeder implements ApplicationRunner {
 
     private void printHints() {
         System.out.println("=== Datos de prueba (GymPlatform) — fuente: db/demo-seed*.sql ===");
-        System.out.println("Platform:       admin@gymplatform.com / admin123");
-        System.out.println("Gym Admin:      dueno@fitlife.com / 12345678");
+        System.out.println("Administrador:  admin@fitlife.com / 12345678");
         System.out.println("Recepcionista:  recepcion@fitlife.com / recepcion123");
         System.out.println("Instructor:     instructor@fitlife.com / instructor123");
         System.out.println("Miembro:        miembro@fitlife.com / miembro123");
         System.out.println("  → Rutinas, nutrición, medidas, reservas y citas (demo-seed-member.sql)");
-        System.out.println("  → Dueño/recepción en perfil Miembro: demo-seed-member-staff.sql");
+        System.out.println("  → Admin/recepción en perfil Miembro: demo-seed-member-staff.sql");
         System.out.println("Areas privadas: 12345678  |  Color demo: indigo");
         System.out.println("===============================================================");
     }

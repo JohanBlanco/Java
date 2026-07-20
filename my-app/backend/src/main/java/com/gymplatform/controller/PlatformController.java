@@ -9,9 +9,11 @@ import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
-@Tag(name = "Plataforma", description = "Gestión de clientes (gimnasios) — solo PLATFORM_OWNER")
+@Tag(name = "Plataforma (deshabilitado)",
+        description = "Gestión multi-gimnasio deshabilitada. El producto opera a nivel de un gimnasio.")
 @RestController
 @RequestMapping("/api/platform/organizations")
+@Deprecated
 public class PlatformController {
 
     private final OrganizationService organizationService;

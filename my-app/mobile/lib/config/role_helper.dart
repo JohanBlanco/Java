@@ -4,17 +4,15 @@ import '../utils/date_format.dart';
 
 class RoleHelper {
   static const roleLabels = {
-    'GYM_OWNER': 'Admin',
+    'GYM_OWNER': 'Administrador',
     'RECEPTIONIST': 'Recepcionista',
     'INSTRUCTOR': 'Instructor',
     'MEMBER': 'Miembro',
-    'PLATFORM_OWNER': 'Plataforma',
   };
 
   static const gymRoles = ['GYM_OWNER', 'RECEPTIONIST', 'INSTRUCTOR', 'MEMBER'];
 
   static const _rolePriority = [
-    'PLATFORM_OWNER',
     'GYM_OWNER',
     'RECEPTIONIST',
     'INSTRUCTOR',
@@ -85,7 +83,7 @@ class RoleHelper {
 
   static String formatRoles(List<String> roles) {
     return roles
-        .where((role) => role != 'PLATFORM_OWNER')
+        .where(gymRoles.contains)
         .map((role) => roleLabels[role] ?? role)
         .join(', ');
   }

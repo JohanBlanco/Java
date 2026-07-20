@@ -12,8 +12,6 @@ import 'screens/login_screen.dart';
 
 import 'screens/home_screen.dart';
 
-import 'screens/platform_screen.dart';
-
 
 
 void main() {
@@ -131,14 +129,6 @@ class AuthGate extends StatelessWidget {
     if (!auth.isAuthenticated) {
 
       return const LoginScreen();
-
-    }
-
-
-
-    if (auth.hasRole('PLATFORM_OWNER')) {
-
-      return const PlatformScreen();
 
     }
 

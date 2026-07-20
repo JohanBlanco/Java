@@ -1,18 +1,16 @@
 export type GymRole = 'GYM_OWNER' | 'RECEPTIONIST' | 'INSTRUCTOR' | 'MEMBER'
-export type PlatformRole = 'PLATFORM_OWNER'
-export type AppRole = GymRole | PlatformRole
+export type AppRole = GymRole
 
 export const ROLE_LABELS: Record<AppRole, string> = {
-  GYM_OWNER: 'Admin',
+  GYM_OWNER: 'Administrador',
   RECEPTIONIST: 'Recepcionista',
   INSTRUCTOR: 'Instructor',
   MEMBER: 'Miembro',
-  PLATFORM_OWNER: 'Plataforma',
 }
 
 export const GYM_ROLES: GymRole[] = ['GYM_OWNER', 'RECEPTIONIST', 'INSTRUCTOR', 'MEMBER']
 
-const ROLE_PRIORITY: AppRole[] = ['PLATFORM_OWNER', 'GYM_OWNER', 'RECEPTIONIST', 'INSTRUCTOR', 'MEMBER']
+const ROLE_PRIORITY: AppRole[] = ['GYM_OWNER', 'RECEPTIONIST', 'INSTRUCTOR', 'MEMBER']
 
 export function normalizeRoles(user: { roles?: string[]; role?: string } | null | undefined): string[] {
   if (!user) return []
@@ -52,7 +50,7 @@ export function hasAnyRole(user: { roles?: string[]; role?: string } | null | un
 
 export function formatRoles(roles: string[]): string {
   return roles
-    .filter((role) => role !== 'PLATFORM_OWNER')
+    .filter((role) => GYM_ROLES.includes(role as GymRole))
     .map((role) => ROLE_LABELS[role as AppRole] ?? role)
     .join(', ')
 }

@@ -10,15 +10,14 @@ alwaysApply: false
 - HTTP: `services/api_service.dart`
 - Config API: `config/api_config.dart` (default `10.0.2.2:8080` para emulador Android)
 - Pantallas en `screens/`
-- Contraseña por defecto staff/gym owner: `config/app_constants.dart` → `12345678`
+- Contraseña por defecto staff/admin: `config/app_constants.dart` → `12345678`
 
 ## Pantallas por rol
 
 | Rol | Pantallas |
 |-----|-----------|
-| `PLATFORM_OWNER` | `platform_screen.dart` — CRUD clientes + cuenta admin |
-| `GYM_OWNER` | `home_screen.dart` + tab **Admin** → `gym_admin_screen.dart` |
-| `INSTRUCTOR` / `MEMBER` | `home_screen.dart` (actividades, rutinas, perfil) |
+| `GYM_OWNER` (Administrador) | `home_screen.dart` + tab **Admin** → `gym_admin_screen.dart` |
+| `INSTRUCTOR` / `MEMBER` / `RECEPTIONIST` | `home_screen.dart` (según permisos) |
 
 ## Al agregar pantalla
 

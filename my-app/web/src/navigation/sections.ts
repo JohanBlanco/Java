@@ -112,13 +112,13 @@ export const AGENDA_SECTIONS: NavSection[] = [
   AGENDA_ACTIVIDADES_SECTION,
 ]
 
-/** Agenda filtrada por rol (citas: staff; actividades: dueño/recepción). */
+/** Agenda filtrada por rol (citas: staff; actividades: administrador/recepción). */
 export function getAgendaSections(activeRole: string | null | undefined): NavSection[] {
   const sections: NavSection[] = []
   if (canViewAgendaCitas(activeRole)) {
     sections.push(AGENDA_CITAS_SECTION)
   }
-  // Calendario de actividades: dueño y recepción (no instructor)
+  // Calendario de actividades: administrador y recepción (no instructor)
   if (activeRole != null && ['GYM_OWNER', 'RECEPTIONIST'].includes(activeRole)) {
     sections.push(AGENDA_ACTIVIDADES_SECTION)
   }

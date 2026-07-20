@@ -99,8 +99,8 @@ export default function ActivityPromotionManager() {
           <p className="activity-promo-admin-kicker">Carrusel del inicio del miembro</p>
           <h2 id="activity-promo-admin-title">Actividades promocionadas</h2>
           <p>
-            Configura hasta tres actividades. Si dejas los tres espacios vacíos, el inicio del
-            miembro mostrará automáticamente las más reservadas.
+            Configura hasta 3 actividades. Solo aparecen en el inicio del miembro cuando hay al menos una
+            con fecha próxima; si no hay ninguna, el carrusel no se muestra.
           </p>
         </div>
         <span className="activity-promo-admin-count">

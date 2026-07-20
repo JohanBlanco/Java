@@ -17,7 +17,8 @@
 --
 -- IDs fijos (referencia rápida):
 --   Orgs: 1=Bulls Gym(fitlife)  2=Power Gym  3=Iron Fit
---   Users FitLife: 1=platform  2=instructor  3=recepción  4=dueño  5..12=miembros
+--   Users FitLife: 2=instructor  3=recepción  4=administrador  5..12=miembros
+--   (sin cuenta PLATFORM_OWNER — el producto es un solo gimnasio)
 --   Users otros: 13=power admin  14=power instructor  15=iron admin
 --   Packages FitLife: 1=Básica  2=Regular  3=Premium  4=Anual legacy
 -- =============================================================================
@@ -54,16 +55,13 @@ INSERT INTO users (
   id, first_name, last_name, email, password_hash, organization_id,
   active, whatsapp_phone, national_id, created_at
 ) VALUES
-(1, 'Admin', 'Plataforma', 'admin@gymplatform.com',
- '$2a$10$PLdP/pYtv0YTC/h5VyRxDuLLLTzNtHWTAjVRGQjuvSDClrHAu6lvK',
- NULL, TRUE, NULL, '109990001', CURRENT_TIMESTAMP),
 (2, 'Ana', 'Torres', 'instructor@fitlife.com',
  '$2a$10$yahLES3NACJ0QXq8oRayvOfJfACKC6HiFkvagLi2yiseWnUdaiChq',
  1, TRUE, NULL, '203451234', CURRENT_TIMESTAMP),
 (3, 'María', 'López', 'recepcion@fitlife.com',
  '$2a$10$iuS5ejskEwQ4NmFUb1.EzOl2jgY/1WJ/ox9ozW24BeoIzlu.Bvao2',
  1, TRUE, NULL, '305672345', CURRENT_TIMESTAMP),
-(4, 'Carlos', 'Mendoza', 'dueno@fitlife.com',
+(4, 'Carlos', 'Mendoza', 'admin@fitlife.com',
  '$2a$10$aZ8ODce.PMKUkYFMVLPIRecG4Dc2tbnHwYdRJuCre6PfScQzioAi2',
  1, TRUE, NULL, '104560123', CURRENT_TIMESTAMP),
 (5, 'Luis', 'García', 'miembro@fitlife.com',
@@ -101,7 +99,6 @@ INSERT INTO users (
  3, TRUE, NULL, '204560003', CURRENT_TIMESTAMP);
 
 INSERT INTO user_roles (user_id, role) VALUES
-(1, 'PLATFORM_OWNER'),
 (2, 'INSTRUCTOR'),
 (3, 'RECEPTIONIST'),
 (3, 'MEMBER'),
@@ -240,13 +237,14 @@ INSERT INTO activities (
  CURRENT_DATE, CURRENT_DATE, FALSE, NULL,
  TIME '08:00:00', TIME '09:00:00', 'Box principal', 14, 2, 18, FALSE, TRUE, CURRENT_TIMESTAMP);
 
--- Promociones de actividades (Mercadeo) — slots 0..2
+-- Promociones de actividades (Mercadeo) — slots 1..3 (inicio del miembro)
+-- Actividades con fechas futuras / recurrentes para que el carrusel no quede vacío al día siguiente.
 INSERT INTO activity_promotions (
   id, organization_id, activity_id, slot_index, image_url, created_at, updated_at
 ) VALUES
-(1, 1, 5, 0, '/uploads/marketing/promo-boxeo.jpg', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-(2, 1, 4, 1, '/uploads/marketing/promo-zumba.jpg', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-(3, 1, 2, 2, '/uploads/marketing/promo-funcional.jpg', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+(1, 1, 12, 1, '/uploads/marketing/promo-pilates.jpg', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+(2, 1, 9, 2, '/uploads/marketing/promo-yoga.jpg', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+(3, 1, 10, 3, '/uploads/marketing/promo-hiit.jpg', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
 -- ---------------------------------------------------------------------------
 -- Reservaciones

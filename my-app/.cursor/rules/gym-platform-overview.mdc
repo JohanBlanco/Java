@@ -11,15 +11,16 @@ alwaysApply: true
 - `web/` — React + TypeScript + Vite (panel responsive)
 - `mobile/` — Flutter (Android/iOS)
 
-## Roles
+## Roles (gimnasio)
 
-| Rol | Acceso |
-|-----|--------|
-| PLATFORM_OWNER | `/api/platform/**` — gestiona clientes (gimnasios) |
-| GYM_OWNER | Plan de entrenamiento, usuarios, actividades |
-| RECEPTIONIST | Recepción (staff), perfil miembro si tiene el rol |
-| INSTRUCTOR | Plantillas y rutinas, solicitudes de rutina |
-| MEMBER | Perfil, reservaciones, rutinas propias |
+| Rol (código) | Etiqueta UI | Acceso |
+|--------------|-------------|--------|
+| GYM_OWNER | Administrador | Plan de entrenamiento, usuarios, actividades, estadísticas, config |
+| RECEPTIONIST | Recepcionista | Recepción (staff), perfil miembro si tiene el rol |
+| INSTRUCTOR | Instructor | Plantillas y rutinas, solicitudes de rutina |
+| MEMBER | Miembro | Perfil, reservaciones, rutinas propias |
+
+> `PLATFORM_OWNER` / gestión de varios gimnasios como “clientes” **ya no se usa** (API `/api/platform/**` denegada).
 
 ## Documentación (mantener sincronizada)
 
@@ -32,11 +33,10 @@ Al hacer cambios significativos, actualizar:
 
 ## Cuentas demo
 
-- Platform: `admin@gymplatform.com` / `admin123`
-- Gym Owner: `dueno@fitlife.com` / `12345678` (perfiles: Admin, Recepcionista, Instructor, Miembro — para probar el switch)
+- Administrador: `admin@fitlife.com` / `12345678` (perfiles: Administrador, Recepcionista, Instructor, Miembro — para probar el switch)
 - Instructor: `instructor@fitlife.com` / `instructor123`
 - Recepcionista: `recepcion@fitlife.com` / `recepcion123`
-- Member: `miembro@fitlife.com` / `miembro123`
+- Miembro: `miembro@fitlife.com` / `miembro123`
 
 **Datos demo:** `backend/src/main/resources/db/demo-seed.sql` + `demo-seed-sales.sql` + `demo-seed-member.sql` (cargados por `DemoSqlSeeder`).
 
@@ -44,13 +44,11 @@ Al hacer cambios significativos, actualizar:
 
 **Miembro demo** (`miembro@fitlife.com` / `miembro123`): rutina, nutrición, medidas, reservas y citas.
 
-## Contraseña por defecto (nuevos gimnasios y usuarios staff)
+## Contraseña por defecto (usuarios staff)
 
-- Al crear un **cliente (gimnasio)**, se crea un `GYM_OWNER` con `ownerEmail` / `ownerPassword` del formulario (default **`12345678`**)
-- Ese admin inicia sesión en `/login` con esas credenciales y ve solo su gimnasio
 - Al crear **usuarios del gym** (`POST /api/users`) sin `password`, se usa **`12345678`**
 - Áreas privadas / estadísticas (demo FitLife): **`12345678`**
-- Roles asignables por gym: `GYM_OWNER`, `INSTRUCTOR`, `MEMBER` (no `PLATFORM_OWNER`)
+- Roles asignables por gym: `GYM_OWNER`, `INSTRUCTOR`, `MEMBER`, `RECEPTIONIST`
 - El auto-registro de miembros (`POST /api/auth/register/{orgId}`) sigue requiriendo que el usuario elija su contraseña
 
 ## Convenciones de código
@@ -60,3 +58,4 @@ Al hacer cambios significativos, actualizar:
 - Mobile: API en `mobile/lib/services/api_service.dart`
 - Mensajes de error en español para el usuario final
 - Calendario actividades: bloques timeline verdes (`.activity-block`); vista **mes** usa `var(--primary)` del tema, no verde. Píldoras mes/semana: hora arriba, nombre abajo
+- En UI: decir **Administrador** / **admin**, nunca “dueño”

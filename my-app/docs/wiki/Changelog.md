@@ -16,6 +16,35 @@ Bitácora de cambios. Actualizar en cada sesión de trabajo.
 
 ---
 
+## 2026-07-20 — Sin multi-gimnasio; “dueño” → Administrador
+
+### Qué se hizo
+- Eliminada la UX de PLATFORM_OWNER (web `/platform`, móvil `platform_screen`, APIs de cliente).
+- `/api/platform/**` denegado; login de plataforma rechazado.
+- Cuenta demo: `admin@fitlife.com` (antes `dueno@fitlife.com`); etiqueta UI **Administrador**.
+- Docs y cursor rules actualizados.
+
+### Cómo probarlo
+1. Login `admin@fitlife.com` / `12345678`.
+2. Confirmar que no hay menú “Clientes”.
+3. `/platform` redirige al inicio.
+
+---
+
+## 2026-07-20 — Documentación técnica (stack, ERD, PostgreSQL, frontend)
+
+### Qué se hizo
+- Nuevas páginas wiki: `Tech-Stack`, `Database-ERD`, `Migrate-H2-to-PostgreSQL`, `Frontend`.
+- Actualizados índice (`Home`, `_Sidebar`, `docs/README`) y resumen en `Architecture`.
+
+### Cómo usarlo
+1. Leer [Tech Stack](Tech-Stack) para el panorama.
+2. [ERD](Database-ERD) para el modelo de datos.
+3. [Migración PostgreSQL](Migrate-H2-to-PostgreSQL) antes de staging/prod.
+4. [Frontend](Frontend) para contribuir al panel web.
+
+---
+
 ## 2026-07-19 — Seed de ventas para estadísticas
 
 ### Qué se hizo

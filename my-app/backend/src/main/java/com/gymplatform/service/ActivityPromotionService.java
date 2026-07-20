@@ -60,29 +60,12 @@ public class ActivityPromotionService {
 
     @Transactional(readOnly = true)
     public List<ActivityPromotionResponse> getHomePromotions(Long organizationId) {
-        List<ActivityPromotion> manual =
-                promotionRepository.findByOrganizationIdOrderBySlotIndexAsc(organizationId);
-        if (!manual.isEmpty()) {
-            return manual.stream()
-                    .filter(p -> nextOccurrence(p.getActivity()) != null)
-                    .map(p -> toResponse(p, true, reservationCount(p.getActivity().getId())))
-                    .toList();
-        }
-
-        Map<Long, Long> counts = reservationCounts(organizationId);
-        LocalDate today = LocalDate.now();
-        return activityRepository
-                .findByOrganizationIdAndActiveTrueOrderByStartDateAscStartTimeAsc(organizationId)
-                .stream()
-                .filter(a -> !a.getEndDate().isBefore(today))
-                .filter(a -> nextOccurrence(a) != null)
-                .sorted(Comparator
-                        .<Activity>comparingLong(a -> counts.getOrDefault(a.getId(), 0L))
-                        .reversed()
-                        .thenComparing(Activity::getStartDate)
-                        .thenComparing(Activity::getStartTime))
-                .limit(MAX_SLOTS)
-                .map(a -> toFallbackResponse(a, counts.getOrDefault(a.getId(), 0L)))
+        // Solo promociones configuradas en Mercadeo. Sin fallback a “más reservadas”.
+        return promotionRepository.findByOrganizationIdOrderBySlotIndexAsc(organizationId).stream()
+                .filter(p -> p.getActivity() != null && p.getActivity().isActive())
+                .filter(p -> nextOccurrence(p.getActivity()) != null)
+                .sorted(Comparator.comparingInt(ActivityPromotion::getSlotIndex))
+                .map(p -> toResponse(p, true, reservationCount(p.getActivity().getId())))
                 .toList();
     }
 
@@ -126,24 +109,6 @@ public class ActivityPromotionService {
         assertSlot(slotIndex);
         promotionRepository.findByOrganizationIdAndSlotIndex(organizationId, slotIndex)
                 .ifPresent(promotionRepository::delete);
-    }
-
-    private ActivityPromotionResponse toFallbackResponse(Activity activity, long count) {
-        LocalDate occurrence = nextOccurrence(activity);
-        return new ActivityPromotionResponse(
-                0,
-                true,
-                false,
-                activity.getId(),
-                activity.getName(),
-                activity.getDescription(),
-                activity.getImageUrl(),
-                occurrence,
-                activity.getStartTime(),
-                activity.getEndTime(),
-                activity.getLocationName(),
-                instructorName(activity),
-                count);
     }
 
     private ActivityPromotionResponse toResponse(
@@ -207,14 +172,6 @@ public class ActivityPromotionService {
                 com.gymplatform.domain.enums.ReservationStatus.CONFIRMED);
     }
 
-    private Map<Long, Long> reservationCounts(Long organizationId) {
-        Map<Long, Long> counts = new HashMap<>();
-        for (Object[] row : reservationRepository.countConfirmedGroupedByActivity(organizationId)) {
-            counts.put((Long) row[0], ((Number) row[1]).longValue());
-        }
-        return counts;
-    }
-
     private void assertSlot(int slotIndex) {
         if (slotIndex < 1 || slotIndex > MAX_SLOTS) {
             throw new BusinessException("El espacio debe estar entre 1 y 3");
@@ -226,6 +183,10 @@ public class ActivityPromotionService {
             return null;
         }
         String value = raw.trim();
+        // Rutas locales servidas por la API (p. ej. seed / uploads de mercadeo)
+        if (value.startsWith("/uploads/")) {
+            return value;
+        }
         URI uri;
         try {
             uri = URI.create(value);
@@ -234,7 +195,7 @@ public class ActivityPromotionService {
         }
         if (!"http".equalsIgnoreCase(uri.getScheme())
                 && !"https".equalsIgnoreCase(uri.getScheme())) {
-            throw new BusinessException("La imagen debe usar una URL http o https");
+            throw new BusinessException("La imagen debe usar una URL http o https, o una ruta /uploads/…");
         }
         return value;
     }

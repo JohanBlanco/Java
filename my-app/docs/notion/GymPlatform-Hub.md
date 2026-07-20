@@ -2,14 +2,16 @@
 
 > Importar a Notion: copiar secciones como páginas hijas o usar Notion MCP cuando esté autenticado.
 
-**Última actualización:** 2026-07-10  
-**Estado:** MVP en desarrollo
+**Última actualización:** 2026-07-20  
+**Estado:** MVP — un gimnasio (sin multi-cliente PLATFORM_OWNER)
 
 ---
 
 ## Resumen
 
-Plataforma SaaS multi-tenant para gimnasios. Tres capas: API (Spring Boot), Web (React), Móvil (Flutter).
+Panel para un gimnasio: API (Spring Boot 3 / Java 17), Web (React 19 + Vite), Móvil (Flutter). DB: H2 file; PostgreSQL preparado.
+
+Docs: `docs/wiki/Tech-Stack.md`, `Database-ERD.md`, `Frontend.md`, `Migrate-H2-to-PostgreSQL.md`.
 
 ---
 
@@ -19,9 +21,27 @@ Plataforma SaaS multi-tenant para gimnasios. Tres capas: API (Spring Boot), Web 
 |---------|-----------------|
 | Swagger UI | http://localhost:8080/swagger-ui.html |
 | Web local | http://localhost:5173 |
-| GitHub Wiki | `docs/wiki/` → publicar en repo.wiki.git |
+| Tech Stack | `docs/wiki/Tech-Stack.md` |
+| ERD | `docs/wiki/Database-ERD.md` |
+| Frontend | `docs/wiki/Frontend.md` |
+| Migración PG | `docs/wiki/Migrate-H2-to-PostgreSQL.md` |
+| GitHub Wiki | `docs/wiki/` |
 | Cursor Rules | `.cursor/rules/` |
-| Repo | `my-app/` |
+
+---
+
+## Cuentas demo
+
+| Rol | Email | Contraseña | Notas |
+|-----|-------|------------|-------|
+| Administrador | admin@fitlife.com | 12345678 | Perfiles: Admin, Recepcionista, Instructor, Miembro |
+| Instructor | instructor@fitlife.com | instructor123 | |
+| Recepcionista | recepcion@fitlife.com | recepcion123 | |
+| Miembro | miembro@fitlife.com | miembro123 | |
+
+- **Staff nuevo** sin password: `12345678`
+- **Áreas privadas / estadísticas:** `12345678`
+
 
 ---
 
@@ -46,16 +66,10 @@ cd mobile && flutter create . --org com.gymplatform && flutter pub get && flutte
 
 ## Cuentas de prueba
 
-| Rol | Email | Password |
-|-----|-------|----------|
-| Platform Owner | admin@gymplatform.com | admin123 |
-| Gym Owner | dueno@fitlife.com | 12345678 | Admin + Recepcionista + Instructor + Miembro |
-| Instructor | instructor@fitlife.com | instructor123 |
-| Member | miembro@fitlife.com | miembro123 |
+Ver tabla de cuentas demo arriba.
 
 ### Contraseña por defecto
 
-- **Nuevo gimnasio:** el dueño entra con el correo de contacto y `12345678`
 - **Nuevo usuario staff:** si no se envía `password` en la API, se usa `12345678`
 
 ---
@@ -63,47 +77,36 @@ cd mobile && flutter create . --org com.gymplatform && flutter pub get && flutte
 ## Estado actual del MVP
 
 ### Implementado
-- [x] Multi-tenant (organizations)
-- [x] Auth JWT con 4 roles
-- [x] Planes de entrenamiento con complementos
-- [x] Actividades con cupo y reservaciones
-- [x] Rutinas, plantillas, solicitudes
-- [x] Perfil de miembro
-- [x] Panel web responsive
-- [x] App Flutter (código base)
-- [x] Swagger/OpenAPI
-- [x] Documentación Wiki + Cursor Rules
+- [x] Organización del gimnasio + usuarios por roles
+- [x] Auth JWT
+- [x] Membresías, actividades, reservas, citas
+- [x] Rutinas, nutrición, medidas
+- [x] Ventas / caja / estadísticas
+- [x] Panel web + app Flutter
+- [x] Swagger + Wiki
 
 ### Pendiente
 - [ ] RBAC fino por rol
-- [ ] Suscripción de miembros a paquetes
 - [ ] Pagos
-- [ ] Notificaciones push
 - [ ] Tests automatizados
-- [ ] CRUD completo (update/delete)
+- [ ] PostgreSQL + migraciones
 
 ---
 
 ## Guía de pruebas por rol
 
-### Platform Owner
-1. Login → panel de clientes
-2. Crear gimnasio nuevo
-3. Suspender / activar suscripción
-
-### Gym Owner
-1. Login → Administración
-2. Crear plan de entrenamiento con complemento
-3. Crear usuario staff
+### Administrador
+1. Login `admin@fitlife.com` → panel del gym
+2. Administración / ventas / estadísticas
+3. Switch a perfil Miembro
 
 ### Instructor
-1. Login → ver solicitudes de rutina
-2. Tomar solicitud
-3. (API) Crear plantilla y asignar
+1. Login → solicitudes de rutina
+2. Tomar solicitud / crear plantillas
 
-### Member
+### Miembro
 1. Login → reservar actividad
-2. Confirmar / cancelar reserva
+2. Ver rutinas / nutrición / medidas
 3. Editar perfil
 4. Solicitar rutina
 

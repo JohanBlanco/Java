@@ -20,9 +20,9 @@ alwaysApply: false
 
 ## Roles en UI
 
-- `PLATFORM_OWNER` → `/platform`
-- `GYM_OWNER` → `/admin` + dashboard
-- `INSTRUCTOR` / `MEMBER` → dashboard según permisos
+- `GYM_OWNER` (etiqueta **Administrador**) → dashboard + administración / estadísticas / config
+- `RECEPTIONIST` / `INSTRUCTOR` / `MEMBER` → según `roles.ts`
+- No hay pantalla de “clientes / organizaciones” (`/platform` redirige a `/`)
 
 ## Controles booleanos
 

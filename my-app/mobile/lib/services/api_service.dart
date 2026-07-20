@@ -181,22 +181,6 @@ class ApiService {
     return await _request('PUT', '/appointment-requests/$id/status', body: {'status': status});
   }
 
-  Future<List<dynamic>> getPlatformOrganizations() async {
-    return await _request('GET', '/platform/organizations') ?? [];
-  }
-
-  Future<Map<String, dynamic>> getPlatformOrganization(int id) async {
-    return await _request('GET', '/platform/organizations/$id');
-  }
-
-  Future<Map<String, dynamic>> createOrganization(Map<String, dynamic> data) async {
-    return await _request('POST', '/platform/organizations', body: data);
-  }
-
-  Future<Map<String, dynamic>> updateOrganization(int id, Map<String, dynamic> data) async {
-    return await _request('PUT', '/platform/organizations/$id', body: data);
-  }
-
   Future<List<dynamic>> getPackages() async {
     return await _request('GET', '/packages') ?? [];
   }

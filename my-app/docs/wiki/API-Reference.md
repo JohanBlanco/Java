@@ -14,16 +14,9 @@
 |--------|------|-------------|
 | POST | `/api/auth/login` | Login |
 | POST | `/api/auth/register/{organizationId}` | Registro miembro |
-| GET | `/api/public/organizations` | Gimnasios activos |
+| GET | `/api/public/organizations` | Gimnasios activos (p. ej. registro) |
 
-## Platform Owner
-
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| GET | `/api/platform/organizations` | Listar clientes |
-| POST | `/api/platform/organizations` | Crear cliente |
-| GET | `/api/platform/organizations/{id}` | Detalle |
-| PUT | `/api/platform/organizations/{id}` | Actualizar suscripción |
+> `/api/platform/**` está **deshabilitado** (ya no hay gestión multi-cliente).
 
 ## Gimnasio (requiere JWT con organizationId)
 
@@ -113,15 +106,6 @@ _Generado automáticamente el 2026-07-11 desde `docs/openapi.json`_
 |--------|------|-------------|
 | POST | `/api/auth/login` | login |
 | POST | `/api/auth/register/{organizationId}` | register |
-
-### Plataforma
-
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| GET | `/api/platform/organizations` | findAll |
-| POST | `/api/platform/organizations` | Crear cliente (gimnasio) |
-| GET | `/api/platform/organizations/{id}` | findById |
-| PUT | `/api/platform/organizations/{id}` | update |
 
 ### Público
 

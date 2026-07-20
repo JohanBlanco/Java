@@ -97,8 +97,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Platform: admin@gymplatform.com o 109990001 / admin123\n'
-                  'Gym Owner: dueno@fitlife.com o 104560123 / ${AppConstants.defaultPassword}\n'
+                  'Administrador: admin@fitlife.com o 104560123 / ${AppConstants.defaultPassword}\n'
                   'Instructor: instructor@fitlife.com o 203451234 / instructor123\n'
                   'Recepcionista: recepcion@fitlife.com o 305672345 / recepcion123\n'
                   'Miembro: miembro@fitlife.com o 190205678 / miembro123',

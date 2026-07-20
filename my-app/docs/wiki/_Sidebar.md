@@ -1,1 +1,1 @@
-**[Inicio](Home)** · [Inicio rápido](Getting-Started) · [Pruebas](Testing-Guide) · [Arquitectura](Architecture) · [API](API-Reference) · [Roles](Roles-and-Permissions) · [Changelog](Changelog)
+**[Inicio](Home)** · [Inicio rápido](Getting-Started) · [Pruebas](Testing-Guide) · [Tech Stack](Tech-Stack) · [Arquitectura](Architecture) · [ERD](Database-ERD) · [PostgreSQL](Migrate-H2-to-PostgreSQL) · [Frontend](Frontend) · [API](API-Reference) · [Roles](Roles-and-Permissions) · [Changelog](Changelog)

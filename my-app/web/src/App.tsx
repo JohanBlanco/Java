@@ -6,7 +6,6 @@ import { OrgBrandProvider } from './orgBrand'
 import { ToastProvider } from './toast'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
-import PlatformPage from './pages/PlatformPage'
 import ProfilePage from './pages/ProfilePage'
 import UserMenu from './components/UserMenu'
 import SettingsSidebar from './components/SettingsSidebar'
@@ -65,7 +64,6 @@ import {
   canViewAgendaCitas,
   canViewAgendaActividades,
   canViewMercadeo,
-  hasRole,
   isMemberView,
 } from './roles'
 import { useSidebar } from './useSidebar'
@@ -89,7 +87,6 @@ function ProtectedLayout() {
 
   if (!user) return <Navigate to="/login" replace />
 
-  const isPlatform = activeRole === 'PLATFORM_OWNER'
   const showVentas = canViewVentas(activeRole)
   const showEstadisticas = canViewEstadisticas(activeRole)
   const showReception = canViewReception(activeRole)
@@ -178,10 +175,6 @@ function ProtectedLayout() {
               showPrivateAccess={showAdmin}
               showGymProfile={showAdmin}
             />
-          ) : isPlatform ? (
-            <NavLink to="/platform" className={({ isActive }) => isActive ? 'active' : ''}>
-              {t('nav.clients')}
-            </NavLink>
           ) : (
             <>
               <NavLink to="/" end className={({ isActive }) => isActive ? 'active' : ''}>
@@ -373,9 +366,7 @@ function AppRoutes() {
       <Route path="/login" element={<LoginRoute />} />
       <Route path="/f/:organizationSlug/:formSlug" element={<PublicFormPage />} />
       <Route element={<ProtectedLayout />}>
-        <Route path="/" element={
-          user?.roles && hasRole(user, 'PLATFORM_OWNER') ? <Navigate to="/platform" replace /> : <DashboardPage />
-        } />
+        <Route path="/" element={<DashboardPage />} />
         <Route path="/operaciones" element={<Navigate to="/" replace />} />
         <Route path="/operaciones/:section" element={<OperacionesIndexRedirect />} />
 
@@ -410,7 +401,7 @@ function AppRoutes() {
 
         <Route path="/expedientes/*" element={<ExpedientesLegacyRedirect />} />
 
-        <Route path="/platform" element={<PlatformPage />} />
+        <Route path="/platform" element={<Navigate to="/" replace />} />
 
         <Route path="/ventas" element={<VentasGuard />}>
           <Route element={<VentasLayout />}>

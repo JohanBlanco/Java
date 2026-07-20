@@ -18,12 +18,6 @@ import {
   whatsappPhoneToLocalDisplay,
 } from '../../utils/whatsappPhone'
 import {
-  listSavedWhatsappContacts,
-  removeSavedWhatsappContact,
-  saveWhatsappContact,
-  type SavedWhatsappContact,
-} from '../../utils/whatsappProspectContacts'
-import {
   defaultOutboundForPackage,
   EMPTY_WHATSAPP_OUTBOUND,
   hasWhatsAppOutboundSelection,
@@ -67,8 +61,6 @@ export default function UsersSection() {
   const [waTargetUserId, setWaTargetUserId] = useState<number | ''>('')
   const [waGuestPhone, setWaGuestPhone] = useState('')
   const [waGuestFirstName, setWaGuestFirstName] = useState('')
-  const [waSaveGuestContact, setWaSaveGuestContact] = useState(true)
-  const [waSavedContacts, setWaSavedContacts] = useState<SavedWhatsappContact[]>(() => listSavedWhatsappContacts())
   const [waOutbound, setWaOutbound] = useState<WhatsAppOutboundSelection>(EMPTY_WHATSAPP_OUTBOUND)
   const [waSending, setWaSending] = useState(false)
 
@@ -166,8 +158,6 @@ export default function UsersSection() {
     setWaTargetUserId('')
     setWaGuestPhone('')
     setWaGuestFirstName('')
-    setWaSaveGuestContact(true)
-    setWaSavedContacts(listSavedWhatsappContacts())
     setWaOutbound({ ...EMPTY_WHATSAPP_OUTBOUND, sendRegistrationForm: true })
     setWaModalOpen(true)
   }
@@ -204,11 +194,6 @@ export default function UsersSection() {
       setWaGuestFirstName('')
       setWaOutbound(EMPTY_WHATSAPP_OUTBOUND)
     }
-  }
-
-  const applySavedContact = (contact: SavedWhatsappContact) => {
-    setWaGuestPhone(contact.phoneLocal)
-    setWaGuestFirstName(contact.firstName)
   }
 
   const handleWaMemberChange = (memberId: number | '') => {
@@ -264,10 +249,6 @@ export default function UsersSection() {
           firstName: waGuestFirstName.trim() || undefined,
           ...payload,
         })
-        if (waSaveGuestContact) {
-          saveWhatsappContact(waGuestPhone, waGuestFirstName)
-          setWaSavedContacts(listSavedWhatsappContacts())
-        }
         applyOutboundFeedback(result)
         closeWhatsappModal()
         return
@@ -834,62 +815,6 @@ export default function UsersSection() {
                 </p>
               )}
             </div>
-            <div className="form-group">
-              <div className="wa-outbound-picker-row" style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.65rem 0.75rem' }}>
-                <div className="wa-outbound-picker-row-text">
-                  <strong>Guardar este número</strong>
-                  <span className="text-muted">Queda en este navegador / app de escritorio para reutilizarlo.</span>
-                </div>
-                <HorizontalSwitch
-                  compact
-                  label="Guardar este número"
-                  checked={waSaveGuestContact}
-                  onChange={setWaSaveGuestContact}
-                />
-              </div>
-            </div>
-            {waSavedContacts.length > 0 && (
-              <div className="form-group">
-                <label className="form-label">Números guardados</label>
-                <ul className="wa-saved-contacts-list" style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '0.35rem' }}>
-                  {waSavedContacts.map((c) => (
-                    <li
-                      key={c.phoneLocal}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        flexWrap: 'wrap',
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius)',
-                        padding: '0.45rem 0.6rem',
-                      }}
-                    >
-                      <button
-                        type="button"
-                        className="btn-secondary"
-                        style={{ flex: 1, textAlign: 'left' }}
-                        onClick={() => applySavedContact(c)}
-                      >
-                        {c.firstName ? `${c.firstName} · ` : ''}
-                        {COSTA_RICA_WHATSAPP_CODE} {c.phoneLocal}
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-secondary"
-                        aria-label="Quitar número guardado"
-                        onClick={() => {
-                          removeSavedWhatsappContact(c.phoneLocal)
-                          setWaSavedContacts(listSavedWhatsappContacts())
-                        }}
-                      >
-                        Quitar
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
           </>
         ) : !waPickUser && waTargetUser ? (
           <p className="admin-form-intro" style={{ marginTop: 0 }}>

@@ -265,7 +265,8 @@ public class GymController {
     }
 
     @GetMapping("/activity-promotions/home")
-    @Operation(summary = "Promociones del inicio o actividades más reservadas")
+    @Operation(summary = "Promociones del inicio del miembro",
+            description = "Solo actividades configuradas en Mercadeo con fecha próxima. Vacío si no hay ninguna.")
     public List<ActivityPromotionResponse> getActivityHomePromotions() {
         return activityPromotionService.getHomePromotions(SecurityUtils.requireOrganizationId());
     }

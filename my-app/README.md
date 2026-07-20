@@ -49,12 +49,12 @@ my-app/
 
 | Rol | Email | Contraseña |
 |-----|-------|------------|
-| Platform Owner | admin@gymplatform.com | admin123 |
-| Gym Owner | dueno@fitlife.com | 12345678 |
+| Administrador | admin@fitlife.com | 12345678 |
 | Instructor | instructor@fitlife.com | instructor123 |
-| Member | miembro@fitlife.com | miembro123 |
+| Recepcionista | recepcion@fitlife.com | recepcion123 |
+| Miembro | miembro@fitlife.com | miembro123 |
 
-**Contraseña por defecto** al crear un gimnasio o un usuario staff (sin indicar password): `12345678`
+**Contraseña por defecto** al crear un usuario staff (sin indicar password): `12345678`
 
 ## Móvil
 

@@ -1,6 +1,6 @@
 # GymPlatform Wiki
 
-Bienvenido a la documentación de **GymPlatform**, plataforma SaaS multi-tenant para administración de gimnasios.
+Bienvenido a la documentación de **GymPlatform**, panel de administración para un gimnasio.
 
 ## Índice
 
@@ -8,7 +8,11 @@ Bienvenido a la documentación de **GymPlatform**, plataforma SaaS multi-tenant 
 |--------|-------------|
 | [Inicio rápido](Getting-Started) | Requisitos y cómo levantar el proyecto |
 | [Guía de pruebas](Testing-Guide) | Checklists por rol y flujo |
-| [Arquitectura](Architecture) | Capas, roles y multi-tenant |
+| [Tech Stack](Tech-Stack) | Tecnologías API, DB, web, móvil + diagramas |
+| [Arquitectura](Architecture) | Capas, roles y modelo |
+| [Modelo de datos (ERD)](Database-ERD) | Diagrama entidad-relación por dominios |
+| [Migrar a PostgreSQL](Migrate-H2-to-PostgreSQL) | De H2 file a Postgres |
+| [Frontend](Frontend) | React, rutas, auth, patrones UI |
 | [Referencia API](API-Reference) | Endpoints y Swagger |
 | [Roles y permisos](Roles-and-Permissions) | Qué puede hacer cada rol |
 | [Changelog](Changelog) | Bitácora de cambios por sesión |
@@ -23,19 +27,19 @@ Bienvenido a la documentación de **GymPlatform**, plataforma SaaS multi-tenant 
 
 | Rol | Email | Contraseña |
 |-----|-------|------------|
-| Dueño plataforma | admin@gymplatform.com | admin123 |
-| Dueño gimnasio | dueno@fitlife.com | 12345678 |
+| Administrador | admin@fitlife.com | 12345678 |
 | Instructor | instructor@fitlife.com | instructor123 |
+| Recepcionista | recepcion@fitlife.com | recepcion123 |
 | Miembro | miembro@fitlife.com | miembro123 |
+
+El administrador demo puede cambiar de perfil (Administrador / Recepcionista / Instructor / Miembro) para probar el switch.
 
 ## Contraseña por defecto
 
-| Acción | Login | Contraseña inicial |
-|--------|-------|-------------------|
-| Crear cliente (platform owner) | Correo de contacto del gimnasio | `12345678` |
-| Crear usuario staff en un gym (`POST /api/users` sin `password`) | Email indicado | `12345678` |
-
-El dueño del gimnasio se crea automáticamente al registrar un nuevo cliente.
+| Acción | Contraseña inicial |
+|--------|-------------------|
+| Crear usuario staff (`POST /api/users` sin `password`) | `12345678` |
+| Áreas privadas / estadísticas | `12345678` |
 
 ## Otras fuentes de documentación
 
@@ -46,4 +50,4 @@ El dueño del gimnasio se crea automáticamente al registrar un nuevo cliente.
 
 ---
 
-*Última actualización: 2026-07-11 (auto-sync)*
+*Última actualización: 2026-07-20*

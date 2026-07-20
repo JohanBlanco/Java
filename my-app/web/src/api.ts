@@ -127,17 +127,6 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  getPlatformOrganizations: () => request<import('./types').Organization[]>('/platform/organizations'),
-
-  getPlatformOrganization: (id: number) =>
-    request<import('./types').Organization>(`/platform/organizations/${id}`),
-
-  createOrganization: (data: Record<string, unknown>) =>
-    request('/platform/organizations', { method: 'POST', body: JSON.stringify(data) }),
-
-  updateOrganization: (id: number, data: Record<string, unknown>) =>
-    request(`/platform/organizations/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-
   getMe: () => request<import('./types').User>('/users/me'),
 
   updateProfile: (data: Record<string, unknown>) =>

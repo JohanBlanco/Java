@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { api } from '../../api'
 import { useToast } from '../../toast'
 
-/** Contraseña del dueño para áreas privadas (estadísticas hoy; otras secciones después). */
+/** Contraseña del administrador para áreas privadas (estadísticas hoy; otras secciones después). */
 export default function PrivateAccessSection() {
   const { showApiError, showSuccess } = useToast()
   const [configured, setConfigured] = useState(false)

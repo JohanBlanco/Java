@@ -55,7 +55,7 @@ export default function LoginPage() {
     <div className="login-page">
       <div className="card login-card">
         <h1>GymPlatform</h1>
-        <p className="subtitle">Administración de gimnasios</p>
+        <p className="subtitle">Administración del gimnasio</p>
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">

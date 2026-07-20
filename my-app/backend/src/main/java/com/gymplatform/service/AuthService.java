@@ -42,10 +42,18 @@ public class AuthService {
         var auth = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.login(), request.password()));
         UserPrincipal principal = (UserPrincipal) auth.getPrincipal();
-        String token = tokenProvider.generateToken(principal);
 
         User user = userRepository.findByEmail(principal.getUsername())
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+
+        // La gestión multi-gimnasio (PLATFORM_OWNER) ya no forma parte del producto.
+        if (user.hasRole(Role.PLATFORM_OWNER)
+                && (user.getOrganization() == null || user.getRoles().size() == 1)) {
+            throw new BusinessException(
+                    "Esta cuenta de plataforma ya no está disponible. Usa una cuenta de administrador del gimnasio.");
+        }
+
+        String token = tokenProvider.generateToken(principal);
 
         return new AuthResponse(
                 token,

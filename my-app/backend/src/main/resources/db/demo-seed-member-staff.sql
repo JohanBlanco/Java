@@ -1,7 +1,7 @@
 -- =============================================================================
--- GymPlatform — datos demo para perfiles staff-como-miembro (dueño / recepción)
+-- GymPlatform — datos demo para perfiles staff-como-miembro (administrador / recepción)
 -- =============================================================================
--- Se carga si dueno@fitlife.com (user 4) no tiene rutinas.
+-- Se carga si admin@fitlife.com (user 4) no tiene rutinas.
 -- Así al cambiar a perfil «Miembro» hay citas, actividades, rutinas y nutrición.
 -- También refuerza citas futuras de Luis (5).
 -- =============================================================================
@@ -9,7 +9,7 @@
 SET REFERENTIAL_INTEGRITY FALSE;
 
 -- ---------------------------------------------------------------------------
--- Rutinas: Carlos (dueño) y María (recepción)
+-- Rutinas: Carlos (administrador) y María (recepción)
 -- ---------------------------------------------------------------------------
 INSERT INTO routines (
   id, name, description, notes, member_id, instructor_id, template_id, organization_id,
@@ -117,7 +117,7 @@ INSERT INTO body_measurements (
  39.0, 102.0, 88.0, 100.0, 118.0,
  36.0, 36.5, 29.0, 29.5,
  58.0, 58.5, 38.0, 38.5,
- 'Baseline dueño — perfil miembro', NULL, DATEADD('DAY', -30, CURRENT_TIMESTAMP)),
+ 'Baseline administrador — perfil miembro', NULL, DATEADD('DAY', -30, CURRENT_TIMESTAMP)),
 (51, 1, 4, 2,
  DATEADD('DAY', -2, CURRENT_TIMESTAMP),
  40, 'MALE', 81.2, 178.0,

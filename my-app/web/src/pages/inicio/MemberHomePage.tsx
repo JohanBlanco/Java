@@ -146,7 +146,7 @@ export default function MemberHomePage() {
         </p>
       )}
 
-      <ActivityPromotionCarousel promotions={promotions} />
+      {promotions.length > 0 && <ActivityPromotionCarousel promotions={promotions} />}
 
       <section className="member-home-agenda" aria-labelledby="member-home-agenda-title">
         <header className="member-home-section-head member-home-section-head--row">

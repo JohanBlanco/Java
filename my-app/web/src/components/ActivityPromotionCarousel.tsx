@@ -38,9 +38,7 @@ export default function ActivityPromotionCarousel({ promotions }: Props) {
     <section className="member-promo" aria-labelledby="member-promo-title">
       <header className="member-home-section-head member-home-section-head--row">
         <div>
-          <p className="member-promo-kicker">
-            {active.manual ? 'Elegida por tu gimnasio' : 'Favoritas de la comunidad'}
-          </p>
+          <p className="member-promo-kicker">Elegida por tu gimnasio</p>
           <h2 id="member-promo-title">Tu próxima clase empieza aquí</h2>
         </div>
         {promotions.length > 1 && (
@@ -80,12 +78,7 @@ export default function ActivityPromotionCarousel({ promotions }: Props) {
 
         <div className="member-promo-content">
           <div className="member-promo-topline">
-            <span>{active.manual ? 'Destacada' : 'Más reservada'}</span>
-            {!active.manual && active.reservationCount > 0 && (
-              <small>
-                {active.reservationCount} reserva{active.reservationCount === 1 ? '' : 's'}
-              </small>
-            )}
+            <span>Destacada</span>
           </div>
           <h3>{active.name}</h3>
           <p className="member-promo-description">

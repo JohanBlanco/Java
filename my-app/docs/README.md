@@ -17,7 +17,11 @@ Este directorio centraliza toda la documentación del proyecto.
 - [Home](wiki/Home.md) — página principal
 - [Getting Started](wiki/Getting-Started.md) — cómo levantar el proyecto
 - [Testing Guide](wiki/Testing-Guide.md) — checklists por rol
+- [Tech Stack](wiki/Tech-Stack.md) — tecnologías y diagramas
 - [Architecture](wiki/Architecture.md) — diseño del sistema
+- [Database ERD](wiki/Database-ERD.md) — modelo de datos
+- [Migrate H2 → PostgreSQL](wiki/Migrate-H2-to-PostgreSQL.md) — guía de migración
+- [Frontend](wiki/Frontend.md) — panel React
 - [API Reference](wiki/API-Reference.md) — resumen de endpoints (+ Swagger)
 - [Roles and Permissions](wiki/Roles-and-Permissions.md) — matriz de permisos
 - [Changelog](wiki/Changelog.md) — bitácora de desarrollo

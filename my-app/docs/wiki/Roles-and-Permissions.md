@@ -2,61 +2,43 @@
 
 ## Matriz de capacidades
 
-| Capacidad | PLATFORM_OWNER | GYM_OWNER | INSTRUCTOR | MEMBER |
-|-----------|:--------------:|:---------:|:----------:|:------:|
-| Gestionar clientes (orgs) | ✅ | ❌ | ❌ | ❌ |
-| Activar/suspender suscripción | ✅ | ❌ | ❌ | ❌ |
-| Crear planes de entrenamiento/complementos | ❌ | ✅ | ❌* | ❌ |
-| Crear usuarios staff | ❌ | ✅ | ❌* | ❌ |
-| Crear actividades | ❌ | ✅ | ✅* | ❌ |
-| Reservar actividades | ❌ | ❌ | ❌ | ✅ |
-| Confirmar/cancelar reserva | ❌ | ❌ | ❌ | ✅** |
-| Crear plantillas rutina | ❌ | ❌ | ✅ | ❌ |
-| Asignar rutinas | ❌ | ❌ | ✅ | ❌ |
-| Ver mis rutinas | ❌ | ❌ | ❌ | ✅ |
-| Solicitar rutina | ❌ | ❌ | ❌ | ✅ |
-| Atender solicitudes | ❌ | ❌ | ✅ | ❌ |
-| Editar perfil propio | ❌ | ❌ | ❌ | ✅ |
+| Capacidad | Administrador (`GYM_OWNER`) | Recepcionista | Instructor | Miembro |
+|-----------|:---------------------------:|:-------------:|:----------:|:-------:|
+| Usuarios / membresías | ✅ | ✅* | ❌* | ❌ |
+| Actividades / calendario | ✅ | ✅ | ✅* | reservar |
+| Ventas / POS | ✅ | ✅ | ✅* | ❌ |
+| Estadísticas (área privada) | ✅ | ❌ | ❌ | ❌ |
+| Mercadeo | ✅ | ✅ | ❌ | ❌ |
+| Plantillas / rutinas | ✅ | ❌ | ✅ | ver propias |
+| Solicitudes de rutina | ✅ | ❌ | atender | solicitar |
+| Citas | ✅ | ✅ | ✅ | agendar propias |
+| Perfil propio | ✅ | ✅ | ✅ | ✅ |
 
-\* Actualmente la API no restringe por rol a nivel método; cualquier usuario autenticado del org puede llamar endpoints de gimnasio. Restricción fina pendiente.
+\* La UI filtra por rol activo; la API aún puede necesitar endurecer `@PreAuthorize` en algunos endpoints.
 
-\** Cualquier usuario autenticado puede confirmar/cancelar cualquier reservación (mejora pendiente: solo el dueño de la reserva).
+## Administrador (`GYM_OWNER`)
 
-## PLATFORM_OWNER
+- Etiqueta en UI: **Administrador** (no “dueño”)
+- Login demo: `admin@fitlife.com` / `12345678`
+- Puede cambiar de perfil (Recepcionista, Instructor, Miembro) si tiene esos roles
+- Contraseña por defecto al crear staff sin password: **`12345678`**
 
-- No tiene `organizationId` en el JWT
-- Solo accede a `/api/platform/**`
-- Al crear un cliente define la **cuenta del administrador** (`ownerFirstName`, `ownerLastName`, `ownerEmail`, `ownerPassword`)
-- Ese administrador inicia sesión en la app web/móvil como **GYM_OWNER** de su gimnasio
+## Recepcionista (`RECEPTIONIST`)
 
-## GYM_OWNER
+- Usuarios, productos, actividades, ventas, mercadeo (según menú)
 
-- Administra su organización completa (usuarios aislados por `organizationId`)
-- En web: sección **Administración** (plan de entrenamiento, usuarios)
-- Puede crear usuarios con rol **INSTRUCTOR** o **MEMBER** (`POST /api/users`)
-- Contraseña por defecto si se omite: **`12345678`**
+## Instructor (`INSTRUCTOR`)
 
-## INSTRUCTOR
+- Crea plantillas y rutinas; atiende solicitudes
 
-- Crea plantillas y rutinas
-- Atiende solicitudes de rutina
-
-## MEMBER
+## Miembro (`MEMBER`)
 
 - Auto-registro vía `POST /api/auth/register/{orgId}`
-- Perfil con `MemberProfile` (birthYear, age, goals, phone)
-- Flujo principal: reservar actividades, ver rutinas
+- Reservar actividades, citas, ver rutinas / nutrición / medidas
 
-## Estados de suscripción (Organization)
+## Plataforma (retirado)
 
-| Estado | Significado |
-|--------|-------------|
-| ACTIVE | Cliente operativo |
-| TRIAL | Periodo de prueba |
-| SUSPENDED | Suspendido por platform owner |
-| INACTIVE | Inactivo |
-
-Solo orgs ACTIVE o TRIAL aparecen en `/api/public/organizations`.
+La gestión multi-gimnasio (`PLATFORM_OWNER`, `/api/platform/**`) **ya no forma parte del producto**.
 
 ## Estados de reservación
 
