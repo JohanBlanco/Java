@@ -88,6 +88,54 @@ public class MemberSubscriptionService {
         return subscriptionRepository.save(subscription);
     }
 
+    /** Desactiva la suscripción creada por una venta anulada. */
+    @Transactional
+    public void deactivateSubscriptionFromSale(Long organizationId, Long subscriptionId) {
+        MemberSubscription subscription = subscriptionRepository.findById(subscriptionId)
+                .orElse(null);
+        if (subscription == null) {
+            return;
+        }
+        User member = subscription.getMember();
+        if (member.getOrganization() == null || !member.getOrganization().getId().equals(organizationId)) {
+            throw new BusinessException("La membresía no pertenece a este gimnasio");
+        }
+        subscription.setActive(false);
+        subscriptionRepository.save(subscription);
+    }
+
+    /**
+     * Compatibilidad: ventas antiguas sin member_subscription_id.
+     * Desactiva la suscripción activa del mismo plan creada cerca de la venta.
+     */
+    @Transactional
+    public void deactivateMatchingSaleSubscription(
+            Long organizationId,
+            Long memberId,
+            Long packageId,
+            Instant saleCreatedAt) {
+        Instant windowStart = saleCreatedAt.minusSeconds(120);
+        Instant windowEnd = saleCreatedAt.plusSeconds(300);
+        subscriptionRepository.findByMemberIdAndActiveTrueOrderByStartDateAsc(memberId).stream()
+                .filter(s -> s.getMembershipPackage() != null
+                        && s.getMembershipPackage().getId().equals(packageId))
+                .filter(s -> {
+                    Instant created = s.getCreatedAt();
+                    if (created == null) {
+                        return true;
+                    }
+                    return !created.isBefore(windowStart) && !created.isAfter(windowEnd);
+                })
+                .findFirst()
+                .ifPresent(s -> {
+                    if (s.getMember().getOrganization() != null
+                            && s.getMember().getOrganization().getId().equals(organizationId)) {
+                        s.setActive(false);
+                        subscriptionRepository.save(s);
+                    }
+                });
+    }
+
     public Optional<MemberSubscription> getCurrentPeriodSubscription(Long memberId) {
         LocalDate today = LocalDate.now();
         return subscriptionRepository.findByMemberIdAndActiveTrueOrderByStartDateAsc(memberId).stream()
@@ -104,6 +152,24 @@ public class MemberSubscriptionService {
 
     public Optional<MemberSubscription> getActiveSubscription(Long memberId) {
         return getCurrentPeriodSubscription(memberId);
+    }
+
+    /**
+     * Membresía vigente con bloqueo pesimista (FOR UPDATE) para no consumir
+     * el mismo cupo gratuito en reservas concurrentes.
+     */
+    @Transactional
+    public MemberSubscription requireActiveSubscriptionForUpdate(Long memberId) {
+        MemberSubscription current = getCurrentPeriodSubscription(memberId)
+                .orElseThrow(() -> new BusinessException("No tienes una membresía activa. Contacta a recepción."));
+        return subscriptionRepository.findByIdForUpdate(current.getId())
+                .orElseThrow(() -> new BusinessException("No tienes una membresía activa. Contacta a recepción."));
+    }
+
+    public boolean hasFreeSlotRemaining(Long memberId, MemberSubscription subscription) {
+        Integer quota = subscription.getMembershipPackage().getFreeActivityQuota();
+        if (quota == null) return true;
+        return countUsedFreeActivities(memberId, subscription) < quota;
     }
 
     public Optional<MemberSubscription> getLatestSubscription(Long memberId) {

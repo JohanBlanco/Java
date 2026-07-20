@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../../api'
+import FormPublicShare from '../../components/FormPublicShare'
 import { useFilteredList } from '../../hooks/useFilteredList'
 import { useToast } from '../../toast'
 import FormBuilder from './forms/FormBuilder'
@@ -8,6 +9,7 @@ import {
   type CustomFormPayload,
 } from './forms/formBuilderConstants'
 import type { CustomForm, FormFolder } from '../../types'
+import { FORM_PURPOSE_LABELS } from '../../types'
 
 const emptyPayload = (): CustomFormPayload => ({
   title: '',
@@ -250,6 +252,9 @@ export default function FormCreatorPanel() {
                     {form.systemDefault && (
                       <span className="badge badge-trial">Sistema</span>
                     )}
+                    <span className="badge badge-active">
+                      {FORM_PURPOSE_LABELS[form.formPurpose] ?? form.formPurpose}
+                    </span>
                     <span className={`badge ${form.accessType === 'PUBLIC' ? 'badge-confirmed' : 'badge-trial'}`}>
                       {FORM_ACCESS_LABELS[form.accessType]}
                     </span>
@@ -261,9 +266,22 @@ export default function FormCreatorPanel() {
                 {form.templateFolderName && (
                   <p className="text-muted forms-card-meta">Carpeta: {form.templateFolderName}</p>
                 )}
+                {!!form.description?.trim() && (
+                  <p className="forms-card-description" title={form.description.trim()}>
+                    {form.description}
+                  </p>
+                )}
                 <p className="text-muted forms-card-meta">
                   Respuestas: {form.responseFolderName ?? 'Automática'} · {form.submissionCount} envío{form.submissionCount === 1 ? '' : 's'}
                 </p>
+                {form.accessType === 'PUBLIC' && form.active && (
+                  <FormPublicShare
+                    url={form.publicUrl}
+                    title={form.title}
+                    slug={form.slug}
+                    compact
+                  />
+                )}
                 <div className="forms-card-actions">
                   <button type="button" className="btn-secondary" onClick={() => openEdit(form)}>Editar</button>
                   <button type="button" className="btn-secondary" onClick={() => copyLink(form.publicUrl)}>Copiar enlace</button>

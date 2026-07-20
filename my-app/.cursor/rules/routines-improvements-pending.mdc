@@ -1,8 +1,3 @@
----
-description: Recordatorio — continuar mejoras en la sección de rutinas (/training/rutinas)
-alwaysApply: true
----
-
 # Rutinas — trabajo pendiente / continuar
 
 El usuario pausó mejoras de rutinas para trabajar citas y calendario de actividades. **Retomar cuando lo pida.**
@@ -11,6 +6,11 @@ El usuario pausó mejoras de rutinas para trabajar citas y calendario de activid
 - Web: `/training/rutinas` → `web/src/pages/training/RoutinesSection.tsx`
 - Miembro: `/servicios/rutinas` → `MemberRoutinesPage.tsx`
 - Backend: `RoutineService.java`, `ExerciseCatalogService.java`
+
+## Visibilidad por rol (nav)
+- **Recepcionista**: Inicio, Agenda, Tienda, Administración — **sin** Plan de entrenamiento / rutinas
+- **Instructor**: lo anterior + Plan de entrenamiento
+- **Admin (GYM_OWNER)**: todo (incluye Estadísticas)
 
 ## Ya implementado (no rehacer)
 - Catálogo EresFitness + foro «Ejercicios» (texto scraped persistido en DB; image/video URL remotas)
@@ -27,7 +27,6 @@ El usuario pausó mejoras de rutinas para trabajar citas y calendario de activid
 3. **Media ejercicios** — enriquecer más `videoUrl`; migrar a cloud propia con licencia clara
 4. **App móvil** — paridad con web para solicitudes, rutinas asignadas y vista miembro
 5. **CRUD rutinas** — editar/eliminar rutinas y plantillas existentes si aún falta
-6. **Recepción** — confirmar si recepcionistas deben ver `/training/rutinas` o ruta propia en recepción
 
 ## Al retomar
 Preguntar al usuario qué mejora concreta quiere primero si no lo especifica.

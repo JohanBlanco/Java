@@ -35,7 +35,9 @@ export default function RoutineRequestsPage() {
             <h3>{r.memberName}</h3>
             <RoutineRequestStatusBadge status={r.status} />
           </div>
-          <p style={{ fontSize: '0.9rem', marginTop: '0.5rem' }}>{r.description}</p>
+          <p className="card-list-body" title={r.description}>
+            {r.description}
+          </p>
           <p className="card-list-meta card-list-meta--clamp" title={r.goals}>
             Objetivos: {r.goals}
           </p>

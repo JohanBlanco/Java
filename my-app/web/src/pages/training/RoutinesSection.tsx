@@ -12,6 +12,7 @@ import type {
   RoutineExercise,
   RoutineRequest,
   RoutineTemplate,
+  RoutineValidityUnit,
   User,
 } from '../../types'
 import { CATALOG_MUSCLE_GROUPS, MUSCLE_GROUP_LABELS } from '../../types'
@@ -49,6 +50,8 @@ const emptyBuilder = () => ({
   notes: '',
   goal: '',
   daysPerWeek: 3,
+  validityAmount: 4,
+  validityUnit: 'WEEKS' as RoutineValidityUnit,
   days: [] as BuilderDay[],
   activeDayIndex: 0,
 })
@@ -68,6 +71,11 @@ function templateAsRoutine(t: RoutineTemplate): Routine {
     templateId: null,
     temporary: false,
     daysPerWeek: t.daysPerWeek,
+    validFrom: null,
+    validUntil: null,
+    validityAmount: null,
+    validityUnit: null,
+    expired: false,
     days: t.days ?? [],
     exercises: t.exercises ?? [],
   }
@@ -132,6 +140,8 @@ function buildFromRoutine(routine: Routine): ReturnType<typeof emptyBuilder> {
       description: routine.description ?? '',
       notes: routine.notes ?? '',
       daysPerWeek: routine.daysPerWeek ?? routine.days.length,
+      validityAmount: routine.validityAmount ?? 4,
+      validityUnit: routine.validityUnit ?? 'WEEKS',
       days: routine.days.map((day: RoutineDay) => ({
         dayNumber: day.dayNumber,
         dayLabel: day.dayLabel,
@@ -156,6 +166,8 @@ function buildFromRoutine(routine: Routine): ReturnType<typeof emptyBuilder> {
     description: routine.description ?? '',
     notes: routine.notes ?? '',
     daysPerWeek,
+    validityAmount: routine.validityAmount ?? 4,
+    validityUnit: routine.validityUnit ?? 'WEEKS',
     days,
     activeDayIndex: 0,
   }
@@ -170,6 +182,8 @@ const serializeBuilderState = (
   notes: builder.notes,
   goal: builder.goal,
   daysPerWeek: builder.daysPerWeek,
+  validityAmount: builder.validityAmount,
+  validityUnit: builder.validityUnit,
   days: builder.days,
   manualMemberId: options.manualMemberId,
   builderMode: options.builderMode,
@@ -180,7 +194,7 @@ type AssignTemplateModalProps = {
   request: RoutineRequest
   templates: RoutineTemplate[]
   assigning: boolean
-  onAssign: (templateId: number) => void
+  onAssign: (templateId: number, validityAmount: number, validityUnit: RoutineValidityUnit) => void
   onClose: () => void
 }
 
@@ -192,6 +206,8 @@ function AssignTemplateModal({
   onClose,
 }: AssignTemplateModalProps) {
   const { filtered, filterInput } = useFilteredList(templates)
+  const [validityAmount, setValidityAmount] = useState(4)
+  const [validityUnit, setValidityUnit] = useState<RoutineValidityUnit>('WEEKS')
 
   return (
     <div className="modal-overlay" role="presentation" onClick={onClose}>
@@ -207,6 +223,28 @@ function AssignTemplateModal({
         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>
           Elige una plantilla para asignar al miembro y completar la solicitud.
         </p>
+        <div className="form-row" style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
+          <div className="form-group" style={{ flex: 1 }}>
+            <label>Vigencia</label>
+            <input
+              type="number"
+              min={1}
+              value={validityAmount}
+              onChange={(e) => setValidityAmount(Math.max(1, Number(e.target.value) || 1))}
+            />
+          </div>
+          <div className="form-group" style={{ flex: 1 }}>
+            <label>Unidad</label>
+            <select
+              value={validityUnit}
+              onChange={(e) => setValidityUnit(e.target.value as RoutineValidityUnit)}
+            >
+              <option value="DAYS">Días</option>
+              <option value="WEEKS">Semanas</option>
+              <option value="MONTHS">Meses</option>
+            </select>
+          </div>
+        </div>
         {templates.length === 0 ? (
           <p>No hay plantillas disponibles. Crea una en la pestaña Plantillas.</p>
         ) : (
@@ -224,7 +262,7 @@ function AssignTemplateModal({
                     type="button"
                     className="template-pick-item"
                     disabled={assigning}
-                    onClick={() => onAssign(t.id)}
+                    onClick={() => onAssign(t.id, validityAmount, validityUnit)}
                   >
                     <strong>{t.name}</strong>
                     {t.description && <span>{t.description}</span>}
@@ -584,12 +622,16 @@ export default function RoutinesSection() {
     showSuccess(`Rutina completada para ${memberName}`)
   }
 
-  const handleAssignTemplateToRequest = async (templateId: number) => {
+  const handleAssignTemplateToRequest = async (
+    templateId: number,
+    validityAmount: number,
+    validityUnit: RoutineValidityUnit,
+  ) => {
     if (!assigningToRequest) return
     const memberName = assigningToRequest.memberName
     setAssigning(true)
     try {
-      await api.assignTemplateToRequest(assigningToRequest.id, templateId)
+      await api.assignTemplateToRequest(assigningToRequest.id, templateId, validityAmount, validityUnit)
       await finishRequest(memberName)
     } catch (err) {
       showApiError(err, 'No se pudo asignar la plantilla')
@@ -756,6 +798,8 @@ export default function RoutinesSection() {
     notes: builder.notes.trim(),
     daysPerWeek: builder.daysPerWeek,
     temporary: false,
+    validityAmount: builder.validityAmount,
+    validityUnit: builder.validityUnit,
     days: builder.days.map((day) => ({
       dayNumber: day.dayNumber,
       dayLabel: day.dayLabel,
@@ -778,6 +822,10 @@ export default function RoutinesSection() {
     }
     if (builder.days.every((d) => d.exercises.length === 0)) {
       showWarning('Agrega al menos un ejercicio')
+      return
+    }
+    if (builderMode === 'routine' && (!builder.validityAmount || builder.validityAmount < 1)) {
+      showWarning('Indica la vigencia de la rutina (días, semanas o meses)')
       return
     }
 
@@ -875,7 +923,8 @@ export default function RoutinesSection() {
     if (selectedInstructorIds.length === 0) return openRequests
     const ids = new Set(selectedInstructorIds)
     return openRequests.filter((r) =>
-      r.preferredInstructorId != null && ids.has(r.preferredInstructorId),
+      (r.preferredInstructorId != null && ids.has(r.preferredInstructorId))
+      || (r.assignedInstructorId != null && ids.has(r.assignedInstructorId)),
     )
   }, [openRequests, selectedInstructorIds])
 
@@ -894,11 +943,14 @@ export default function RoutinesSection() {
           <h3>{r.memberName}</h3>
           <p className="card-list-meta">
             Instructor preferido: {r.preferredInstructorName ?? 'Cualquier instructor'}
+            {r.assignedInstructorName ? ` · Atendiendo: ${r.assignedInstructorName}` : ''}
           </p>
         </div>
         <RoutineRequestStatusBadge status={r.status} />
       </div>
-      <p className="card-list-body">{r.description}</p>
+      <p className="card-list-body" title={r.description}>
+        {r.description}
+      </p>
       <p className="card-list-meta card-list-meta--clamp" title={r.goals}>
         Objetivos: {r.goals}
       </p>
@@ -938,7 +990,9 @@ export default function RoutinesSection() {
         </div>
         <RoutineRequestStatusBadge status={r.status} />
       </div>
-      <p className="card-list-body">{r.description}</p>
+      <p className="card-list-body" title={r.description}>
+        {r.description}
+      </p>
       <p className="card-list-meta card-list-meta--clamp" title={r.goals}>
         Objetivos: {r.goals}
       </p>
@@ -1107,6 +1161,37 @@ export default function RoutinesSection() {
                   ))}
                 </select>
               </div>
+
+              {builderMode === 'routine' && (
+                <div className="form-row" style={{ display: 'flex', gap: '0.75rem' }}>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label>Vigencia</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={builder.validityAmount}
+                      onChange={(e) => setBuilder((p) => ({
+                        ...p,
+                        validityAmount: Math.max(1, Number(e.target.value) || 1),
+                      }))}
+                    />
+                  </div>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label>Unidad</label>
+                    <select
+                      value={builder.validityUnit}
+                      onChange={(e) => setBuilder((p) => ({
+                        ...p,
+                        validityUnit: e.target.value as RoutineValidityUnit,
+                      }))}
+                    >
+                      <option value="DAYS">Días</option>
+                      <option value="WEEKS">Semanas</option>
+                      <option value="MONTHS">Meses</option>
+                    </select>
+                  </div>
+                </div>
+              )}
 
               <div className="routine-day-tabs">
                 {builder.days.map((day, i) => (
@@ -1361,7 +1446,7 @@ export default function RoutinesSection() {
           {visibleOpenRequests.length === 0 ? (
             <div className="empty-state card">
               {selectedInstructorIds.length > 0
-                ? 'No hay solicitudes para el instructor seleccionado'
+                ? 'No hay solicitudes para el instructor seleccionado (preferido o en atención)'
                 : 'Sin solicitudes de rutina'}
             </div>
           ) : visibleOpenRequests.map(renderPendingRequestCard)}

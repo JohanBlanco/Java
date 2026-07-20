@@ -6,6 +6,7 @@ import com.gymplatform.domain.entity.ProductCategory;
 import com.gymplatform.dto.ProductCategoryCreateRequest;
 import com.gymplatform.dto.ProductCategoryResponse;
 import com.gymplatform.dto.ProductImageSuggestionResponse;
+import com.gymplatform.dto.ProductOfferUpdateRequest;
 import com.gymplatform.dto.ProductRequest;
 import com.gymplatform.dto.ProductResponse;
 import com.gymplatform.exception.BusinessException;
@@ -509,12 +510,39 @@ public class ProductService {
         return new ProductCategoryResponse(c.getId(), c.getName(), c.getSlug(), c.getDescription(), c.getSortOrder());
     }
 
+    @Transactional
+    public ProductResponse updateOffer(Long organizationId, Long id, ProductOfferUpdateRequest request) {
+        Product product = requireProduct(organizationId, id);
+        if (request.offerFrom() != null
+                && request.offerUntil() != null
+                && request.offerUntil().isBefore(request.offerFrom())) {
+            throw new BusinessException("La fecha fin de la oferta no puede ser anterior al inicio");
+        }
+        product.setOfferPercent(request.offerPercent());
+        String badge = request.offerBadge() == null ? null : request.offerBadge().trim();
+        product.setOfferBadge(badge == null || badge.isBlank() ? null : badge);
+        product.setOfferFrom(request.offerFrom());
+        product.setOfferUntil(request.offerUntil());
+        return toResponse(productRepository.save(product));
+    }
+
+    @Transactional
+    public void clearOffer(Long organizationId, Long id) {
+        Product product = requireProduct(organizationId, id);
+        product.setOfferPercent(null);
+        product.setOfferBadge(null);
+        product.setOfferFrom(null);
+        product.setOfferUntil(null);
+        productRepository.save(product);
+    }
+
     private ProductResponse toResponse(Product p) {
         List<ProductCategoryResponse> cats = p.getCategories().stream()
                 .sorted(java.util.Comparator.comparingInt(ProductCategory::getSortOrder)
                         .thenComparing(ProductCategory::getName))
                 .map(this::toCategoryResponse)
                 .toList();
+        boolean offerActive = com.gymplatform.util.ProductOfferUtils.isOfferActive(p);
         return new ProductResponse(
                 p.getId(),
                 p.getName(),
@@ -536,7 +564,12 @@ public class ProductService {
                 p.getIvaPercent(),
                 com.gymplatform.util.PriceAddonUtils.toResponses(p.isApplyIva(), p.getIvaPercent()),
                 com.gymplatform.util.PriceAddonUtils.applyIva(p.getPackagePrice(), p.isApplyIva(), p.getIvaPercent()),
-                com.gymplatform.util.PriceAddonUtils.applyIva(p.getUnitPrice(), p.isApplyIva(), p.getIvaPercent())
+                com.gymplatform.util.PriceAddonUtils.applyIva(p.getUnitPrice(), p.isApplyIva(), p.getIvaPercent()),
+                offerActive,
+                p.getOfferPercent(),
+                offerActive ? com.gymplatform.util.ProductOfferUtils.resolveBadge(p) : p.getOfferBadge(),
+                p.getOfferFrom(),
+                p.getOfferUntil()
         );
     }
 

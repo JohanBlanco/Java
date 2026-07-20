@@ -38,6 +38,10 @@ public class StoreSaleItem {
     @Column(nullable = false)
     private int stockUnitsDeducted = 0;
 
+    /** Suscripción creada al vender membresía (para poder anularla). */
+    @Column(name = "member_subscription_id")
+    private Long memberSubscriptionId;
+
     @Column(nullable = false, precision = 14, scale = 2)
     private BigDecimal unitPrice = BigDecimal.ZERO;
 
@@ -60,6 +64,8 @@ public class StoreSaleItem {
     public void setQuantity(int quantity) { this.quantity = quantity; }
     public int getStockUnitsDeducted() { return stockUnitsDeducted; }
     public void setStockUnitsDeducted(int stockUnitsDeducted) { this.stockUnitsDeducted = stockUnitsDeducted; }
+    public Long getMemberSubscriptionId() { return memberSubscriptionId; }
+    public void setMemberSubscriptionId(Long memberSubscriptionId) { this.memberSubscriptionId = memberSubscriptionId; }
     public BigDecimal getUnitPrice() { return unitPrice; }
     public void setUnitPrice(BigDecimal unitPrice) { this.unitPrice = unitPrice; }
     public BigDecimal getLineTotal() { return lineTotal; }

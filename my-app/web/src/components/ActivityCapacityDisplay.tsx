@@ -24,7 +24,7 @@ export default function ActivityCapacityDisplay({
   if (activity.capacity != null && isActivityFull(activity)) {
     return (
       <span className={`activity-capacity-badge activity-capacity-badge--full ${className}`.trim()}>
-        Lleno
+        Sin cupos
       </span>
     )
   }

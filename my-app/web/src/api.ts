@@ -106,6 +106,27 @@ export const api = {
 
   getPublicOrganizations: () => request<import('./types').Organization[]>('/public/organizations'),
 
+  getMyOrganization: () =>
+    request<import('./types').GymOrganization>('/organization'),
+
+  updateMyOrganization: (data: {
+    currentPassword: string
+    name: string
+    contactEmail?: string | null
+    contactPhone?: string | null
+    address?: string | null
+    city?: string | null
+    tagline?: string | null
+    businessHours?: string | null
+    websiteUrl?: string | null
+    socialHandle?: string | null
+    accentId?: string
+  }) =>
+    request<import('./types').GymOrganization>('/organization', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
   getPlatformOrganizations: () => request<import('./types').Organization[]>('/platform/organizations'),
 
   getPlatformOrganization: (id: number) =>
@@ -256,6 +277,9 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  deleteStoreSale: (id: number) =>
+    request<import('./types').StoreSale>(`/store/sales/${id}`, { method: 'DELETE' }),
+
   attachStoreSalePaymentProof: (id: number, paymentProofData: string) =>
     request<import('./types').StoreSale>(`/store/sales/${id}/payment-proof`, {
       method: 'PUT',
@@ -308,6 +332,77 @@ export const api = {
     request<import('./types').Activity[]>(
       `/activities?series=true&status=${activeOnly ? 'active' : 'cancelled'}`,
     ),
+
+  getActivityPromotionSlots: () =>
+    request<import('./types').ActivityPromotion[]>('/activity-promotions/admin'),
+
+  getActivityHomePromotions: () =>
+    request<import('./types').ActivityPromotion[]>('/activity-promotions/home'),
+
+  saveActivityPromotion: (
+    slotIndex: number,
+    data: { activityId: number; imageUrl?: string },
+  ) =>
+    request<import('./types').ActivityPromotion>(`/activity-promotions/${slotIndex}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  clearActivityPromotion: (slotIndex: number) =>
+    request(`/activity-promotions/${slotIndex}`, { method: 'DELETE' }),
+
+  uploadMarketingMedia: async (file: File) => {
+    const token = getToken()
+    const form = new FormData()
+    form.append('file', file)
+    const headers: Record<string, string> = {}
+    if (token) headers.Authorization = `Bearer ${token}`
+    let response: Response
+    try {
+      response = await fetch(`${API_BASE}/marketing/media`, {
+        method: 'POST',
+        headers,
+        body: form,
+      })
+    } catch {
+      throw new ApiError(
+        `No se pudo conectar con el servidor (${API_BASE}). Verifica que el backend esté en ejecución.`,
+        0,
+      )
+    }
+    if (!response.ok) {
+      const text = await response.text()
+      if (response.status === 401) notifyUnauthorized('/marketing/media')
+      throw new ApiError(parseErrorMessage(response.status, text), response.status)
+    }
+    return (await response.json()) as { url: string }
+  },
+
+  getSeasonThemes: () =>
+    request<{ id: string; label: string }[]>('/marketing/season-themes'),
+
+  updateSeasonTheme: (seasonTheme: string) =>
+    request<{ seasonTheme: string }>('/marketing/season', {
+      method: 'PUT',
+      body: JSON.stringify({ seasonTheme }),
+    }),
+
+  updateProductOffer: (
+    id: number,
+    data: {
+      offerPercent: number
+      offerBadge?: string
+      offerFrom?: string | null
+      offerUntil?: string | null
+    },
+  ) =>
+    request<import('./types').Product>(`/marketing/products/${id}/offer`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  clearProductOffer: (id: number) =>
+    request(`/marketing/products/${id}/offer`, { method: 'DELETE' }),
 
   cancelActivity: (id: number, cancelReservations = false) =>
     request(`/activities/${id}?cancelReservations=${cancelReservations}`, { method: 'DELETE' }),
@@ -374,6 +469,39 @@ export const api = {
   getSales: () => request<import('./types').Sale[]>('/sales'),
 
   getStatsSummary: () => request<import('./types').GymStats>('/stats/summary'),
+
+  getStatisticsAccess: () =>
+    request<import('./types').StatisticsAccess>('/statistics/access'),
+
+  setStatisticsAccess: (password: string) =>
+    request<import('./types').StatisticsAccess>('/statistics/access', {
+      method: 'PUT',
+      body: JSON.stringify({ password }),
+    }),
+
+  changeStatisticsAccess: (currentPassword: string, newPassword: string) =>
+    request<import('./types').StatisticsAccess>('/statistics/access/change', {
+      method: 'PUT',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
+
+  unlockStatistics: (password: string) =>
+    request<import('./types').StatisticsUnlock>('/statistics/unlock', {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    }),
+
+  getStatisticsDashboard: (
+    period: 'day' | 'month' | 'year',
+    date: string,
+    unlockToken: string,
+  ) => {
+    const params = new URLSearchParams({ period, date })
+    return request<import('./types').StatisticsDashboard>(
+      `/statistics/dashboard?${params}`,
+      { headers: { 'X-Stats-Unlock': unlockToken } },
+    )
+  },
 
   getMyMembershipUsage: () => request<import('./types').MembershipUsage>('/users/me/membership-usage'),
 
@@ -481,7 +609,10 @@ export const api = {
     additionalNotes?: string
     preferredInstructorId?: number
   }) =>
-    request('/routine-requests', { method: 'POST', body: JSON.stringify(data) }),
+    request<import('./types').RoutineRequest>('/routine-requests', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 
   getRoutineRequests: (preferredToMe = false) => {
     const q = preferredToMe ? '?assignedToMe=true' : ''
@@ -509,16 +640,26 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  assignRoutineTemplate: (templateId: number, memberIds: number[]) =>
+  assignRoutineTemplate: (
+    templateId: number,
+    memberIds: number[],
+    validityAmount: number,
+    validityUnit: import('./types').RoutineValidityUnit,
+  ) =>
     request<import('./types').Routine[]>('/routines/assign-template', {
       method: 'POST',
-      body: JSON.stringify({ templateId, memberIds }),
+      body: JSON.stringify({ templateId, memberIds, validityAmount, validityUnit }),
     }),
 
-  assignTemplateToRequest: (requestId: number, templateId: number) =>
+  assignTemplateToRequest: (
+    requestId: number,
+    templateId: number,
+    validityAmount: number,
+    validityUnit: import('./types').RoutineValidityUnit,
+  ) =>
     request<import('./types').Routine>(`/routine-requests/${requestId}/assign-template`, {
       method: 'POST',
-      body: JSON.stringify({ templateId }),
+      body: JSON.stringify({ templateId, validityAmount, validityUnit }),
     }),
 
   createAppointmentRequest: (data: {
@@ -677,6 +818,9 @@ export const api = {
 
   getUsers: () => request<import('./types').User[]>('/users'),
 
+  getInstructors: () =>
+    request<Array<{ id: number; firstName: string; lastName: string }>>('/instructors'),
+
   getPendingMembershipPayment: () =>
     request<import('./types').User[]>('/users/pending-membership-payment'),
 
@@ -686,6 +830,32 @@ export const api = {
   resendRegistrationForm: (userId: number) =>
     request<import('./types').WhatsappOutboundResponse>(`/users/${userId}/resend-registration-form`, {
       method: 'POST',
+    }),
+
+  sendUserWhatsappMessages: (
+    userId: number,
+    data: { sendRegistrationForm: boolean; templateIds?: number[] },
+  ) =>
+    request<import('./types').WhatsappMessagesOutboundResponse>(`/users/${userId}/send-whatsapp-messages`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  sendWhatsappMessagesBulk: (data: { sendRegistrationForm: boolean; templateIds?: number[] }) =>
+    request<import('./types').WhatsappBulkMessagesOutboundResponse>('/users/send-whatsapp-messages-bulk', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  sendWhatsappMessagesToPhone: (data: {
+    whatsappPhone: string
+    firstName?: string
+    sendRegistrationForm: boolean
+    templateIds?: number[]
+  }) =>
+    request<import('./types').WhatsappMessagesOutboundResponse>('/users/send-whatsapp-messages-phone', {
+      method: 'POST',
+      body: JSON.stringify(data),
     }),
 
   updateUser: (id: number, data: Record<string, unknown>) =>
@@ -748,6 +918,15 @@ export const api = {
       senderPhone?: string | null
       enabled: boolean
       whatsappWebSessionConfirmed?: boolean
+      deliveryMode?: import('./types').WhatsAppDeliveryMode
+      cloudApiAppId?: string | null
+      cloudApiPhoneNumberId?: string | null
+      cloudApiWabaId?: string | null
+      cloudApiGraphVersion?: string | null
+      encryptedSecrets?: import('./types').EncryptedSecretPayload | null
+      clearAccessToken?: boolean
+      clearAppSecret?: boolean
+      clearVerifyToken?: boolean
     },
   ) =>
     request<import('./types').BroadcastChannelSettings>(`/broadcast/settings/${channel}`, {
@@ -765,7 +944,13 @@ export const api = {
 
   createBroadcastTemplate: (
     channel: import('./types').BroadcastChannel,
-    data: { name: string; body: string; purpose?: import('./types').BroadcastTemplatePurpose },
+    data: {
+      name: string
+      body: string
+      purpose?: import('./types').BroadcastTemplatePurpose
+      membershipPackageId?: number | null
+      mediaLinks?: string[]
+    },
   ) =>
     request<import('./types').BroadcastMessageTemplate>(`/broadcast/templates/${channel}`, {
       method: 'POST',
@@ -775,7 +960,13 @@ export const api = {
   updateBroadcastTemplate: (
     channel: import('./types').BroadcastChannel,
     id: number,
-    data: { name: string; body: string; purpose?: import('./types').BroadcastTemplatePurpose },
+    data: {
+      name: string
+      body: string
+      purpose?: import('./types').BroadcastTemplatePurpose
+      membershipPackageId?: number | null
+      mediaLinks?: string[]
+    },
   ) =>
     request<import('./types').BroadcastMessageTemplate>(`/broadcast/templates/${channel}/${id}`, {
       method: 'PUT',
@@ -784,6 +975,25 @@ export const api = {
 
   deleteBroadcastTemplate: (channel: import('./types').BroadcastChannel, id: number) =>
     request<void>(`/broadcast/templates/${channel}/${id}`, { method: 'DELETE' }),
+
+  sendWhatsAppCloudText: (data: { to: string; body: string; previewUrl?: boolean }) =>
+    request<import('./types').WhatsAppCloudSendResponse>('/whatsapp/cloud/send-text', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  sendWhatsAppCloudDocument: (data: {
+    to: string
+    documentUrl?: string | null
+    fileBase64?: string | null
+    filename?: string | null
+    mimeType?: string | null
+    caption?: string | null
+  }) =>
+    request<import('./types').WhatsAppCloudSendResponse>('/whatsapp/cloud/send-document', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 
   getForms: (templateFolderId?: number | null) => {
     const query = templateFolderId != null ? `?templateFolderId=${templateFolderId}` : ''
@@ -849,13 +1059,13 @@ export const api = {
     request<import('./types').PublicForm>(`/public/forms/${organizationSlug}/${formSlug}`),
 
   submitPublicForm: (organizationSlug: string, formSlug: string, answers: Record<string, unknown>, memberUserId?: number) =>
-    request<{ id: number; createdAt: string }>(`/public/forms/${organizationSlug}/${formSlug}/submit`, {
+    request<import('./types').FormSubmissionResult>(`/public/forms/${organizationSlug}/${formSlug}/submit`, {
       method: 'POST',
       body: JSON.stringify({ answers, memberUserId: memberUserId ?? null }),
     }),
 
   submitAuthenticatedForm: (formId: number, answers: Record<string, unknown>) =>
-    request<{ id: number; createdAt: string }>(`/forms/${formId}/submit`, {
+    request<import('./types').FormSubmissionResult>(`/forms/${formId}/submit`, {
       method: 'POST',
       body: JSON.stringify({ answers }),
     }),

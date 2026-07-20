@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../../api'
 import { useAuth } from '../../auth'
+import AdminFormModal from '../../components/AdminFormModal'
 import CashSessionModal from '../../components/CashSessionModal'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import HorizontalSwitch from '../../components/HorizontalSwitch'
@@ -16,6 +17,8 @@ import type {
   User,
 } from '../../types'
 import { formatMoney } from '../../utils/money'
+import { applyOfferToPrice, productOfferBadge } from '../../utils/productOffer'
+import { formatDateTime } from '../../utils/dateFormat'
 import {
   formatSalePaymentsSummary,
   readImageFileAsDataUrl,
@@ -88,6 +91,9 @@ export default function TiendaPuntoDeVentaSection() {
   const [sinpeProofData, setSinpeProofData] = useState<string | null>(null)
   const [sinpeProofName, setSinpeProofName] = useState<string | null>(null)
   const [saleSummary, setSaleSummary] = useState<SaleSummaryState | null>(null)
+  const [invoiceWaModalOpen, setInvoiceWaModalOpen] = useState(false)
+  const [invoiceWaMemberId, setInvoiceWaMemberId] = useState<number | ''>('')
+  const [invoiceWaSending, setInvoiceWaSending] = useState(false)
   const [loading, setLoading] = useState(true)
   const saleSummaryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -112,7 +118,73 @@ export default function TiendaPuntoDeVentaSection() {
     }, SALE_SUMMARY_TTL_MS)
   }, [clearSaleSummaryTimer])
 
+  const restartSaleSummaryTimer = useCallback(() => {
+    if (!saleSummary) return
+    clearSaleSummaryTimer()
+    saleSummaryTimerRef.current = setTimeout(() => {
+      setSaleSummary(null)
+      saleSummaryTimerRef.current = null
+    }, SALE_SUMMARY_TTL_MS)
+  }, [clearSaleSummaryTimer, saleSummary])
+
   useEffect(() => () => clearSaleSummaryTimer(), [clearSaleSummaryTimer])
+
+  const sendInvoiceViaWhatsApp = useCallback(async (phone: string | null | undefined) => {
+    if (!saleSummary) return
+    const result = await shareStoreSaleInvoiceViaWhatsApp(saleSummary.sale, phone, { gymName })
+    if (result.ok && result.mode === 'download-and-chat') {
+      showSuccess('PDF descargado. Adjunta el archivo en el chat de WhatsApp que se abrió.')
+    } else if (result.ok && result.mode === 'share') {
+      showSuccess('Comprobante listo para enviar por WhatsApp')
+    } else if (!result.ok && result.reason === 'no-phone') {
+      showWarning('Elige un miembro con WhatsApp para enviar la factura.')
+    } else if (!result.ok && result.reason === 'error') {
+      showWarning('No se pudo preparar el PDF para WhatsApp')
+    }
+    return result
+  }, [gymName, saleSummary, showSuccess, showWarning])
+
+  const openInvoiceWaFlow = useCallback(() => {
+    if (!saleSummary) return
+    const phone = saleSummary.memberWhatsappPhone?.trim()
+    if (phone) {
+      void sendInvoiceViaWhatsApp(phone)
+      return
+    }
+    clearSaleSummaryTimer()
+    setInvoiceWaMemberId(saleSummary.sale.memberId ?? '')
+    setInvoiceWaModalOpen(true)
+  }, [clearSaleSummaryTimer, saleSummary, sendInvoiceViaWhatsApp])
+
+  const invoiceWaMember = useMemo(
+    () => (invoiceWaMemberId === '' ? null : members.find((m) => m.id === invoiceWaMemberId) ?? null),
+    [invoiceWaMemberId, members],
+  )
+
+  const handleInvoiceWaSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!saleSummary) return
+    if (!invoiceWaMember) {
+      showWarning('Selecciona un miembro para obtener el número de WhatsApp')
+      return
+    }
+    const phone = invoiceWaMember.whatsappPhone?.trim()
+    if (!phone) {
+      showWarning('Ese miembro no tiene WhatsApp registrado. Elige otro o actualiza su perfil.')
+      return
+    }
+    setInvoiceWaSending(true)
+    try {
+      const result = await sendInvoiceViaWhatsApp(phone)
+      if (result?.ok) {
+        setSaleSummary((prev) => (prev ? { ...prev, memberWhatsappPhone: phone } : prev))
+        setInvoiceWaModalOpen(false)
+        restartSaleSummaryTimer()
+      }
+    } finally {
+      setInvoiceWaSending(false)
+    }
+  }
 
   const selectedMember = useMemo(
     () => (memberId === '' ? null : members.find((m) => m.id === memberId) ?? null),
@@ -196,13 +268,14 @@ export default function TiendaPuntoDeVentaSection() {
     kind: 'UNIT' | 'PACKAGE',
     applyIvaAtSale = false,
   ) => {
-    const base = kind === 'PACKAGE' ? product.packagePrice : product.unitPrice
+    const rawBase = kind === 'PACKAGE' ? product.packagePrice : product.unitPrice
+    const base = applyOfferToPrice(rawBase, product)
     if (productHasIvaIncluded(product)) {
       return resolveSalePrice(base, {
         applyIva: product.applyIva,
         ivaPercent: product.ivaPercent,
         priceAddons: product.priceAddons,
-        priceWithAddons: kind === 'PACKAGE' ? product.packagePriceWithAddons : product.unitPriceWithAddons,
+        priceWithAddons: undefined,
       })
     }
     return priceWithIva(base, applyIvaAtSale, systemIvaPercent)
@@ -526,10 +599,7 @@ export default function TiendaPuntoDeVentaSection() {
               <span>
                 desde{' '}
                 {session.openedAt
-                  ? new Date(session.openedAt).toLocaleString('es-CR', {
-                      dateStyle: 'short',
-                      timeStyle: 'short',
-                    })
+                  ? formatDateTime(session.openedAt, 'es')
                   : '—'}
                 {' · '}
                 {formatMoney(session.openingTotal)} · neto {formatMoney(session.salesNetTotal)}
@@ -588,10 +658,15 @@ export default function TiendaPuntoDeVentaSection() {
               {filteredProducts.length === 0 ? (
                 <p className="form-hint">No hay productos para vender</p>
               ) : (
-                filteredProducts.map((p) => (
+                filteredProducts.map((p) => {
+                  const badge = productOfferBadge(p)
+                  const kind = p.sellByUnit ? 'UNIT' : 'PACKAGE'
+                  const sale = productSalePrice(p, kind)
+                  const was = p.sellByUnit ? p.unitPrice : p.packagePrice
+                  return (
                   <div
                     key={p.id}
-                    className={`pos-product-card${p.outOfStock ? ' is-sold-out' : ''}`}
+                    className={`pos-product-card${p.outOfStock ? ' is-sold-out' : ''}${p.offerActive ? ' has-offer' : ''}`}
                   >
                     <button
                       type="button"
@@ -601,10 +676,14 @@ export default function TiendaPuntoDeVentaSection() {
                     >
                       <div className="pos-product-thumb">
                         {p.imageUrl ? <img src={p.imageUrl} alt="" referrerPolicy="no-referrer" /> : <span>Sin imagen</span>}
+                        {badge && <span className="product-offer-badge">{badge}</span>}
                       </div>
                       <strong>{p.name}</strong>
                       <span className="pos-product-meta">
-                        {formatMoney(productSalePrice(p, p.sellByUnit ? 'UNIT' : 'PACKAGE'))}
+                        {p.offerActive && (
+                          <span className="pos-product-was">{formatMoney(was)} </span>
+                        )}
+                        {formatMoney(sale)}
                         {' · '}
                         {p.stockUnits} uds
                       </span>
@@ -628,7 +707,8 @@ export default function TiendaPuntoDeVentaSection() {
                       </button>
                     )}
                   </div>
-                ))
+                  )
+                })
               )}
             </div>
           ) : (
@@ -653,7 +733,9 @@ export default function TiendaPuntoDeVentaSection() {
                     </p>
                   )}
                   {pkg.description?.trim() && (
-                    <p className="pos-membership-desc">{pkg.description}</p>
+                    <p className="pos-membership-desc" title={pkg.description.trim()}>
+                      {pkg.description}
+                    </p>
                   )}
                   <p className="pos-membership-quota">
                     {pkg.freeActivityQuota == null
@@ -818,10 +900,7 @@ export default function TiendaPuntoDeVentaSection() {
                 <div>
                   <strong>Venta #{saleSummary.sale.id}</strong>
                   <span>
-                    {new Date(saleSummary.sale.createdAt).toLocaleString('es-CR', {
-                      dateStyle: 'short',
-                      timeStyle: 'short',
-                    })}
+                    {formatDateTime(saleSummary.sale.createdAt, 'es')}
                     {saleSummary.sale.memberName ? ` · ${saleSummary.sale.memberName}` : ''}
                     {saleSummary.sale.payments?.length || saleSummary.sale.paymentMethod
                       ? ` · ${formatSalePaymentsSummary(
@@ -865,33 +944,19 @@ export default function TiendaPuntoDeVentaSection() {
                 >
                   Factura PDF
                 </button>
-                {(saleSummary.sale.memberId != null || !!saleSummary.sale.memberName) && (
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    onClick={() => {
-                      void shareStoreSaleInvoiceViaWhatsApp(
-                        saleSummary.sale,
-                        saleSummary.memberWhatsappPhone,
-                        { gymName },
-                      ).then((result) => {
-                        if (result.ok && result.mode === 'download-and-chat') {
-                          showSuccess('PDF descargado. Adjunta el archivo en el chat de WhatsApp que se abrió.')
-                        } else if (result.ok && result.mode === 'share') {
-                          showSuccess('Comprobante listo para enviar por WhatsApp')
-                        } else if (!result.ok && result.reason === 'no-phone') {
-                          showWarning('El cliente no tiene WhatsApp registrado. Selecciónalo en su perfil o cobra con un miembro que sí lo tenga.')
-                        } else if (!result.ok && result.reason === 'error') {
-                          showWarning('No se pudo preparar el PDF para WhatsApp')
-                        }
-                      })
-                    }}
-                  >
-                    Enviar PDF por WA
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={openInvoiceWaFlow}
+                >
+                  Enviar PDF por WA
+                </button>
               </div>
-              <p className="form-hint pos-sale-summary-ttl">Se cierra solo en 1 minuto</p>
+              <p className="form-hint pos-sale-summary-ttl">
+                {saleSummary.memberWhatsappPhone
+                  ? 'Se cierra solo en 1 minuto'
+                  : 'Para WhatsApp elige un miembro con número. Se cierra solo en 1 minuto'}
+              </p>
             </div>
           )}
         </aside>
@@ -908,6 +973,45 @@ export default function TiendaPuntoDeVentaSection() {
           onSubmit={(counts, notes) => void submitCash(counts, notes)}
         />
       )}
+
+      <AdminFormModal
+        title="Enviar factura por WhatsApp"
+        open={invoiceWaModalOpen}
+        onClose={() => {
+          if (invoiceWaSending) return
+          setInvoiceWaModalOpen(false)
+          restartSaleSummaryTimer()
+        }}
+        onSubmit={handleInvoiceWaSubmit}
+        saving={invoiceWaSending}
+        submitLabel="Enviar factura"
+        submitDisabled={!invoiceWaMember || !invoiceWaMember.whatsappPhone?.trim()}
+        intro={(
+          <p className="admin-form-intro">
+            Esta venta no tiene un WhatsApp asociado. Elige un miembro registrado para tomar su número
+            y enviar el PDF de la factura.
+          </p>
+        )}
+      >
+        <MemberSearchSelect
+          members={members}
+          value={invoiceWaMemberId}
+          onChange={setInvoiceWaMemberId}
+          label="Miembro (destinatario)"
+          placeholder="Buscar por nombre, cédula o correo…"
+          required
+        />
+        {invoiceWaMember && !invoiceWaMember.whatsappPhone?.trim() && (
+          <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginTop: '0.5rem' }}>
+            Este miembro no tiene WhatsApp. Elige otro o actualiza su perfil.
+          </p>
+        )}
+        {invoiceWaMember?.whatsappPhone && (
+          <p className="form-hint" style={{ marginTop: '0.5rem' }}>
+            Se enviará a {invoiceWaMember.whatsappPhone}
+          </p>
+        )}
+      </AdminFormModal>
 
       <ConfirmDialog
         open={pendingPackage != null}

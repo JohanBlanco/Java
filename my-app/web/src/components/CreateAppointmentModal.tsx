@@ -14,6 +14,8 @@ import { combineDateAndTime, dateInputValue, parseDateTime } from '../utils/appo
 
 import { toIsoDate } from '../utils/calendarUtils'
 
+import { formatTimeRangeLabel } from '../utils/dateFormat'
+
 
 
 type Props = {
@@ -294,7 +296,7 @@ export default function CreateAppointmentModal({
 
                     >
 
-                      {slot.startTime} – {slot.endTime}
+                      {formatTimeRangeLabel(slot.startTime, slot.endTime)}
 
                     </button>
 

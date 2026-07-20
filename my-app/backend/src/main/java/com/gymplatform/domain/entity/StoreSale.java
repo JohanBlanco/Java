@@ -59,6 +59,16 @@ public class StoreSale {
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
+    /** Anulación suave (solo con caja abierta). */
+    private Instant voidedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "voided_by_user_id")
+    private User voidedBy;
+
+    @Column(length = 300)
+    private String voidReason;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public Organization getOrganization() { return organization; }
@@ -82,6 +92,16 @@ public class StoreSale {
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
     public Instant getCreatedAt() { return createdAt; }
+    public Instant getVoidedAt() { return voidedAt; }
+    public void setVoidedAt(Instant voidedAt) { this.voidedAt = voidedAt; }
+    public User getVoidedBy() { return voidedBy; }
+    public void setVoidedBy(User voidedBy) { this.voidedBy = voidedBy; }
+    public String getVoidReason() { return voidReason; }
+    public void setVoidReason(String voidReason) { this.voidReason = voidReason; }
+
+    public boolean isVoided() {
+        return voidedAt != null;
+    }
 
     public void addPayment(StoreSalePayment payment) {
         payment.setStoreSale(this);

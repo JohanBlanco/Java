@@ -24,6 +24,7 @@ import {
   minutesToTimeLabel,
   parseTimeToMinutes,
 } from '../utils/availabilityUtils'
+import { formatTimeRangeLabel } from '../utils/dateFormat'
 
 import MemberSearchSelect from './MemberSearchSelect'
 import StaffSearchSelect from './StaffSearchSelect'
@@ -184,9 +185,12 @@ export default function StaffCreateAppointmentModal({
   ])
 
   const fixedScheduleLabel = isOpenSlotClaim && openAppointment
-    ? `${localTimeFromIso(openAppointment.scheduledStart)} – ${localTimeFromIso(openAppointment.scheduledEnd)}`
+    ? formatTimeRangeLabel(
+      localTimeFromIso(openAppointment.scheduledStart),
+      localTimeFromIso(openAppointment.scheduledEnd),
+    )
     : isAvailabilityPrefill
-      ? `${initialStartTime} – ${initialEndTime}`
+      ? formatTimeRangeLabel(initialStartTime, initialEndTime)
       : null
 
   const handleCustomStartChange = (value: string) => {
@@ -234,7 +238,7 @@ export default function StaffCreateAppointmentModal({
         ))}
       </div>
       <p className="text-muted">
-        {customStartTime} – {customEndTime} · <strong>{customDurationMinutes} min</strong>
+        {formatTimeRangeLabel(customStartTime, customEndTime)} · <strong>{customDurationMinutes} min</strong>
       </p>
       {customRangeBlocked && (
         <p className="form-error">
@@ -405,7 +409,7 @@ export default function StaffCreateAppointmentModal({
                               setOpenAppointmentId(slot.appointmentId)
                             }}
                           >
-                            {slot.startTime} – {slot.endTime}
+                            {formatTimeRangeLabel(slot.startTime, slot.endTime)}
                           </button>
                         )
                       })}

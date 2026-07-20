@@ -57,6 +57,11 @@ public class ProductCatalogSeeder implements ApplicationRunner {
 
     private void seedIfEmpty(Organization org) {
         productService.ensureCategories(org.getId());
+        // Fuente de verdad de demo: db/demo-seed.sql. Solo rellena si el SQL no dejó productos.
+        if (productRepository.countByOrganizationIdAndActiveTrue(org.getId()) > 0) {
+            log.info("Catálogo demo omitido: ya hay productos (p. ej. desde db/demo-seed.sql)");
+            return;
+        }
 
         Map<String, ProductCategory> bySlug = new HashMap<>();
         for (ProductCategory cat : categoryRepository.findByOrganizationIdAndActiveTrueOrderBySortOrderAscNameAsc(org.getId())) {

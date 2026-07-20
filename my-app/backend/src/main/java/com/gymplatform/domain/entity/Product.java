@@ -87,6 +87,16 @@ public class Product {
     @Column(nullable = false)
     private boolean sellByUnit = true;
 
+    /** Descuento promocional 1–90. Null = sin oferta. */
+    private Integer offerPercent;
+
+    @Column(length = 40)
+    private String offerBadge;
+
+    private java.time.LocalDate offerFrom;
+
+    private java.time.LocalDate offerUntil;
+
     @Column(nullable = false)
     private boolean active = true;
 
@@ -136,6 +146,14 @@ public class Product {
     public void setSellByPackage(boolean sellByPackage) { this.sellByPackage = sellByPackage; }
     public boolean isSellByUnit() { return sellByUnit; }
     public void setSellByUnit(boolean sellByUnit) { this.sellByUnit = sellByUnit; }
+    public Integer getOfferPercent() { return offerPercent; }
+    public void setOfferPercent(Integer offerPercent) { this.offerPercent = offerPercent; }
+    public String getOfferBadge() { return offerBadge; }
+    public void setOfferBadge(String offerBadge) { this.offerBadge = offerBadge; }
+    public java.time.LocalDate getOfferFrom() { return offerFrom; }
+    public void setOfferFrom(java.time.LocalDate offerFrom) { this.offerFrom = offerFrom; }
+    public java.time.LocalDate getOfferUntil() { return offerUntil; }
+    public void setOfferUntil(java.time.LocalDate offerUntil) { this.offerUntil = offerUntil; }
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
     public Instant getCreatedAt() { return createdAt; }

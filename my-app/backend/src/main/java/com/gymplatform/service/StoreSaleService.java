@@ -112,6 +112,7 @@ public class StoreSaleService {
                 StoreSaleItem item = new StoreSaleItem();
                 item.setKind(StoreSaleItemKind.MEMBERSHIP);
                 item.setMembershipPackage(pkg);
+                item.setMemberSubscriptionId(assigned.getId());
                 item.setDescription(desc);
                 item.setQuantity(1);
                 item.setUnitPrice(unitPrice);
@@ -148,19 +149,25 @@ public class StoreSaleService {
 
             BigDecimal basePrice = asPackage ? product.getPackagePrice() : product.getUnitPrice();
             if (basePrice == null) basePrice = BigDecimal.ZERO;
+            boolean offerActive = com.gymplatform.util.ProductOfferUtils.isOfferActive(product);
+            BigDecimal offeredBase = com.gymplatform.util.ProductOfferUtils.applyOffer(basePrice, product);
             boolean applyIva = product.isApplyIva()
                     || (!product.isApplyIva() && Boolean.TRUE.equals(line.applyIva()));
             BigDecimal ivaPercent = product.isApplyIva()
                     ? product.getIvaPercent()
                     : (applyIva ? cashRegisterService.getSystemIvaPercent(organizationId) : null);
             BigDecimal unitPrice = com.gymplatform.util.PriceAddonUtils.applyIva(
-                    basePrice, applyIva, ivaPercent);
+                    offeredBase, applyIva, ivaPercent);
             BigDecimal lineTotal = unitPrice.multiply(BigDecimal.valueOf(qty)).setScale(2, RoundingMode.HALF_UP);
 
             product.setStockUnits(product.getStockUnits() - stockNeeded);
             productRepository.save(product);
 
             String desc = product.getName() + (asPackage ? " (contenedor)" : " (unidad)");
+            if (offerActive) {
+                String badge = com.gymplatform.util.ProductOfferUtils.resolveBadge(product);
+                desc += " (" + (badge != null ? badge : product.getOfferPercent() + "% OFF") + ")";
+            }
             String addonLabel = com.gymplatform.util.PriceAddonUtils.describe(applyIva, ivaPercent);
             if (!addonLabel.isBlank()) {
                 desc += " (+ " + addonLabel + ")";
@@ -336,8 +343,63 @@ public class StoreSaleService {
             }
         }
         return storeSaleRepository.findByOrganizationAndPeriod(organizationId, from, to).stream()
+                .filter(sale -> !sale.isVoided())
                 .map(this::toResponse)
                 .toList();
+    }
+
+    @Transactional
+    public StoreSaleResponse voidSale(Long organizationId, Long saleId, Long userId) {
+        StoreSale sale = storeSaleRepository.findById(saleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Movimiento no encontrado"));
+        if (sale.getOrganization() == null || !sale.getOrganization().getId().equals(organizationId)) {
+            throw new BusinessException("El movimiento no pertenece a este gimnasio");
+        }
+        if (sale.isVoided()) {
+            throw new BusinessException("Este movimiento ya fue eliminado");
+        }
+        CashSession session = sale.getCashSession();
+        if (session == null) {
+            throw new BusinessException("Solo se pueden eliminar movimientos vinculados a una caja");
+        }
+        if (session.getStatus() != com.gymplatform.domain.enums.CashSessionStatus.OPEN) {
+            throw new BusinessException("Solo se pueden eliminar movimientos mientras la caja esté abierta");
+        }
+        CashSession open = cashRegisterService.requireOpenSession(organizationId);
+        if (!open.getId().equals(session.getId())) {
+            throw new BusinessException("Solo se pueden eliminar movimientos de la caja abierta actual");
+        }
+
+        User actor = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+
+        List<StoreSaleItem> items = storeSaleItemRepository.findByStoreSaleIdOrderByIdAsc(sale.getId());
+        for (StoreSaleItem item : items) {
+            if (item.getKind() == StoreSaleItemKind.UNIT || item.getKind() == StoreSaleItemKind.PACKAGE) {
+                if (item.getProduct() != null && item.getStockUnitsDeducted() > 0) {
+                    Product product = item.getProduct();
+                    product.setStockUnits(product.getStockUnits() + item.getStockUnitsDeducted());
+                    productRepository.save(product);
+                }
+            } else if (item.getKind() == StoreSaleItemKind.MEMBERSHIP) {
+                if (item.getMemberSubscriptionId() != null) {
+                    memberSubscriptionService.deactivateSubscriptionFromSale(
+                            organizationId, item.getMemberSubscriptionId());
+                } else if (sale.getMember() != null && item.getMembershipPackage() != null) {
+                    memberSubscriptionService.deactivateMatchingSaleSubscription(
+                            organizationId,
+                            sale.getMember().getId(),
+                            item.getMembershipPackage().getId(),
+                            sale.getCreatedAt());
+                }
+            }
+        }
+
+        sale.setVoidedAt(Instant.now());
+        sale.setVoidedBy(actor);
+        sale.setVoidReason("Eliminado con caja abierta");
+        storeSaleRepository.save(sale);
+        return toResponse(sale);
     }
 
     @Transactional(readOnly = true)
@@ -416,6 +478,9 @@ public class StoreSaleService {
         }
         if (sale.getType() != StoreSaleType.SALE) {
             throw new BusinessException("Solo las ventas pueden tener comprobante de pago");
+        }
+        if (sale.isVoided()) {
+            throw new BusinessException("No se puede adjuntar comprobante a un movimiento eliminado");
         }
         String proof = sanitizeProofData(request.paymentProofData());
         if (proof == null) {
@@ -537,6 +602,10 @@ public class StoreSaleService {
         }
 
         User member = sale.getMember();
+        CashSession session = sale.getCashSession();
+        boolean deletable = !sale.isVoided()
+                && session != null
+                && session.getStatus() == com.gymplatform.domain.enums.CashSessionStatus.OPEN;
         return new StoreSaleResponse(
                 sale.getId(),
                 sale.getType(),
@@ -546,12 +615,14 @@ public class StoreSaleService {
                 member != null ? member.getId() : null,
                 member != null ? (member.getFirstName() + " " + member.getLastName()).trim() : null,
                 (sale.getCreatedBy().getFirstName() + " " + sale.getCreatedBy().getLastName()).trim(),
-                sale.getCashSession() != null ? sale.getCashSession().getId() : null,
+                session != null ? session.getId() : null,
                 primary,
                 hasProof,
                 cashAmount,
                 payments,
-                items
+                items,
+                sale.isVoided(),
+                deletable
         );
     }
 

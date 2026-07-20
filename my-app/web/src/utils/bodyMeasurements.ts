@@ -1,4 +1,5 @@
 import type { BiologicalSex, BodyMeasurementCreatePayload } from '../types'
+import { formatDateTime } from './dateFormat'
 
 export type BodyMeasurementFormState = {
   memberId: number | ''
@@ -92,10 +93,7 @@ export function formToPayload(form: BodyMeasurementFormState): BodyMeasurementCr
 }
 
 export function formatMeasurementDate(iso: string): string {
-  return new Date(iso).toLocaleString('es-CR', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  })
+  return formatDateTime(iso, 'es')
 }
 
 export function bmiBadgeClass(category: string | null | undefined): string {

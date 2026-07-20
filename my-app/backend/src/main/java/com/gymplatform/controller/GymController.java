@@ -40,6 +40,9 @@ public class GymController {
     private final RoutineGenerationService routineGenerationService;
     private final ForumService forumService;
     private final ProductService productService;
+    private final WhatsAppCloudApiService whatsAppCloudApiService;
+    private final OrganizationService organizationService;
+    private final ActivityPromotionService activityPromotionService;
 
     public GymController(UserService userService,
                          MembershipPackageService packageService, ActivityService activityService,
@@ -57,7 +60,10 @@ public class GymController {
                          MemberFileService memberFileService,
                          RoutineGenerationService routineGenerationService,
                          ForumService forumService,
-                         ProductService productService) {
+                         ProductService productService,
+                         WhatsAppCloudApiService whatsAppCloudApiService,
+                         OrganizationService organizationService,
+                         ActivityPromotionService activityPromotionService) {
         this.userService = userService;
         this.packageService = packageService;
         this.activityService = activityService;
@@ -77,6 +83,24 @@ public class GymController {
         this.routineGenerationService = routineGenerationService;
         this.forumService = forumService;
         this.productService = productService;
+        this.whatsAppCloudApiService = whatsAppCloudApiService;
+        this.organizationService = organizationService;
+        this.activityPromotionService = activityPromotionService;
+    }
+
+    @Operation(summary = "Perfil / branding del gimnasio actual")
+    @GetMapping("/organization")
+    public GymOrganizationResponse getMyOrganization() {
+        return organizationService.getGymProfile(SecurityUtils.requireOrganizationId());
+    }
+
+    @Operation(summary = "Actualizar perfil del gimnasio (solo admin; requiere contraseña)")
+    @PutMapping("/organization")
+    public GymOrganizationResponse updateMyOrganization(@Valid @RequestBody GymOrganizationUpdateRequest request) {
+        return organizationService.updateGymProfile(
+                SecurityUtils.requireOrganizationId(),
+                SecurityUtils.currentUser().getId(),
+                request);
     }
 
     // --- Usuarios ---
@@ -91,6 +115,13 @@ public class GymController {
     @GetMapping("/users")
     public List<UserResponse> getUsers() {
         return userService.findByOrganization(SecurityUtils.requireOrganizationId());
+    }
+
+    @GetMapping("/instructors")
+    @Operation(summary = "Listar instructores del gimnasio",
+            description = "Instructores y admins activos. Pensado para que miembros elijan preferencia en solicitudes.")
+    public List<InstructorOptionResponse> getInstructors() {
+        return userService.findInstructors(SecurityUtils.requireOrganizationId());
     }
 
     @GetMapping("/users/pending-membership-payment")
@@ -112,6 +143,35 @@ public class GymController {
             description = "Genera un enlace wa.me con el mensaje y el formulario de registro del miembro.")
     public WhatsappOutboundResponse resendRegistrationForm(@PathVariable Long id) {
         return userService.resendRegistrationForm(SecurityUtils.requireOrganizationId(), id);
+    }
+
+    @PostMapping("/users/send-whatsapp-messages-bulk")
+    @Operation(summary = "Enviar mensajes de WhatsApp a todos con número",
+            description = "Envía plantillas y/o formulario de registro a todos los usuarios activos "
+                    + "con WhatsApp. Requiere Cloud API.")
+    public WhatsappBulkMessagesOutboundResponse sendWhatsappMessagesBulk(
+            @Valid @RequestBody UserWhatsappMessagesRequest request) {
+        return userService.sendWhatsappMessagesToAllWithPhone(
+                SecurityUtils.requireOrganizationId(), request);
+    }
+
+    @PostMapping("/users/send-whatsapp-messages-phone")
+    @Operation(summary = "Enviar mensajes de WhatsApp a un número libre",
+            description = "Prepara plantillas y/o el formulario de registro público (sin miembro) "
+                    + "para un número de WhatsApp (prospecto / pre-inscripción). wa.me o Cloud API.")
+    public WhatsappMessagesOutboundResponse sendWhatsappMessagesToPhone(
+            @Valid @RequestBody GuestWhatsappMessagesRequest request) {
+        return userService.sendWhatsappMessagesToPhone(
+                SecurityUtils.requireOrganizationId(), request);
+    }
+
+    @PostMapping("/users/{id}/send-whatsapp-messages")
+    @Operation(summary = "Enviar mensajes de WhatsApp al miembro",
+            description = "Prepara plantillas seleccionadas y/o el formulario de registro (wa.me o Cloud API).")
+    public WhatsappMessagesOutboundResponse sendWhatsappMessages(
+            @PathVariable Long id,
+            @Valid @RequestBody UserWhatsappMessagesRequest request) {
+        return userService.sendWhatsappMessages(SecurityUtils.requireOrganizationId(), id, request);
     }
 
     @GetMapping("/users/me")
@@ -197,6 +257,37 @@ public class GymController {
     }
 
     // --- Actividades ---
+    @GetMapping("/activity-promotions/admin")
+    @Operation(summary = "Tres espacios de actividades promocionadas para administración")
+    public List<ActivityPromotionResponse> getActivityPromotionSlots() {
+        requirePromotionManager();
+        return activityPromotionService.getAdminSlots(SecurityUtils.requireOrganizationId());
+    }
+
+    @GetMapping("/activity-promotions/home")
+    @Operation(summary = "Promociones del inicio o actividades más reservadas")
+    public List<ActivityPromotionResponse> getActivityHomePromotions() {
+        return activityPromotionService.getHomePromotions(SecurityUtils.requireOrganizationId());
+    }
+
+    @PutMapping("/activity-promotions/{slotIndex}")
+    @Operation(summary = "Configurar un espacio promocional (admin o recepción)")
+    public ActivityPromotionResponse saveActivityPromotion(
+            @PathVariable int slotIndex,
+            @Valid @RequestBody ActivityPromotionRequest request) {
+        requirePromotionManager();
+        return activityPromotionService.saveSlot(
+                SecurityUtils.requireOrganizationId(), slotIndex, request);
+    }
+
+    @DeleteMapping("/activity-promotions/{slotIndex}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Vaciar un espacio promocional (admin o recepción)")
+    public void clearActivityPromotion(@PathVariable int slotIndex) {
+        requirePromotionManager();
+        activityPromotionService.clearSlot(SecurityUtils.requireOrganizationId(), slotIndex);
+    }
+
     @PostMapping("/activities")
     public ActivityResponse createActivity(@Valid @RequestBody ActivityRequest request) {
         return activityService.create(SecurityUtils.requireOrganizationId(), request);
@@ -302,6 +393,14 @@ public class GymController {
             @PathVariable Long id,
             @Valid @RequestBody ActivityOccurrenceEditRequest request) {
         return activityService.editOccurrence(SecurityUtils.requireOrganizationId(), id, request);
+    }
+
+    private void requirePromotionManager() {
+        var user = SecurityUtils.currentUser();
+        if (!user.hasRole("GYM_OWNER") && !user.hasRole("RECEPTIONIST")) {
+            throw new com.gymplatform.exception.BusinessException(
+                    "Solo administración o recepción pueden gestionar actividades promocionadas");
+        }
     }
 
     // --- Reservaciones ---
@@ -517,11 +616,22 @@ public class GymController {
     }
 
     @GetMapping("/routine-requests")
+    @Operation(summary = "Listar solicitudes de rutina",
+            description = "Staff ve todas las del gimnasio. El miembro solo ve las propias. "
+                    + "Con assignedToMe=true el instructor ve las que lo eligieron de preferencia.")
     public List<RoutineRequestResponse> getRoutineRequests(
             @RequestParam(required = false, defaultValue = "false") boolean assignedToMe) {
         Long orgId = SecurityUtils.requireOrganizationId();
+        var current = SecurityUtils.currentUser();
         if (assignedToMe) {
-            return routineService.findRequestsAssignedToInstructor(orgId, SecurityUtils.currentUser().getId());
+            return routineService.findRequestsAssignedToInstructor(orgId, current.getId());
+        }
+        // Miembro sin rol de staff: solo sus solicitudes
+        if (current.hasRole("MEMBER")
+                && !current.hasRole("GYM_OWNER")
+                && !current.hasRole("INSTRUCTOR")
+                && !current.hasRole("RECEPTIONIST")) {
+            return routineService.findRequestsByMember(current.getId());
         }
         return routineService.findRequests(orgId);
     }
@@ -533,7 +643,7 @@ public class GymController {
             @Valid @RequestBody AssignRequestTemplateRequest request) {
         var user = SecurityUtils.currentUser();
         return routineService.assignTemplateToRequest(
-                SecurityUtils.requireOrganizationId(), user.getId(), id, request.templateId());
+                SecurityUtils.requireOrganizationId(), user.getId(), id, request);
     }
 
     @PutMapping("/routine-requests/{id}/status")
@@ -856,15 +966,15 @@ public class GymController {
                 SecurityUtils.currentUser().getId());
     }
 
-    // --- Mensajes de difusión ---
+    // --- WhatsApp (wa.me / Cloud API) ---
 
-    @Operation(summary = "Configuración de canal de difusión")
+    @Operation(summary = "Configuración de canal WhatsApp")
     @GetMapping("/broadcast/settings/{channel}")
     public BroadcastChannelSettingsResponse getBroadcastChannelSettings(@PathVariable BroadcastChannel channel) {
         return broadcastSettingsService.getChannelSettings(SecurityUtils.requireOrganizationId(), channel);
     }
 
-    @Operation(summary = "Actualizar configuración de canal de difusión")
+    @Operation(summary = "Actualizar configuración de canal WhatsApp")
     @PutMapping("/broadcast/settings/{channel}")
     public BroadcastChannelSettingsResponse updateBroadcastChannelSettings(
             @PathVariable BroadcastChannel channel,
@@ -873,7 +983,7 @@ public class GymController {
                 SecurityUtils.requireOrganizationId(), channel, request);
     }
 
-    @Operation(summary = "Plantillas de mensajes de difusión")
+    @Operation(summary = "Plantillas de mensajes WhatsApp")
     @GetMapping("/broadcast/templates/{channel}")
     public List<BroadcastMessageTemplateResponse> getBroadcastTemplates(
             @PathVariable BroadcastChannel channel,
@@ -906,6 +1016,49 @@ public class GymController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteBroadcastTemplate(@PathVariable BroadcastChannel channel, @PathVariable Long id) {
         broadcastSettingsService.deleteTemplate(SecurityUtils.requireOrganizationId(), id);
+    }
+
+    @Operation(summary = "Cloud API: enviar texto",
+            description = "Equivalente a Send Text Message del Postman collection (POST /{Phone-Number-ID}/messages).")
+    @PostMapping("/whatsapp/cloud/send-text")
+    public WhatsAppCloudSendResponse sendWhatsAppCloudText(
+            @Valid @RequestBody WhatsAppCloudSendTextRequest request) {
+        Long orgId = SecurityUtils.requireOrganizationId();
+        boolean preview = request.previewUrl() == null || Boolean.TRUE.equals(request.previewUrl());
+        String messageId = whatsAppCloudApiService.sendText(orgId, request.to(), request.body(), preview);
+        return new WhatsAppCloudSendResponse(messageId, null);
+    }
+
+    @Operation(summary = "Cloud API: enviar documento",
+            description = "Por URL pública o subiendo base64 a /media y enviando por ID (Postman: Send Document / Upload Media).")
+    @PostMapping("/whatsapp/cloud/send-document")
+    public WhatsAppCloudSendResponse sendWhatsAppCloudDocument(
+            @Valid @RequestBody WhatsAppCloudSendDocumentRequest request) {
+        Long orgId = SecurityUtils.requireOrganizationId();
+        boolean hasUrl = request.documentUrl() != null && !request.documentUrl().isBlank();
+        boolean hasFile = request.fileBase64() != null && !request.fileBase64().isBlank();
+        if (!hasUrl && !hasFile) {
+            throw new com.gymplatform.exception.BusinessException(
+                    "Indica documentUrl o fileBase64 para enviar el archivo");
+        }
+        if (hasFile) {
+            byte[] bytes = whatsAppCloudApiService.decodeBase64File(request.fileBase64());
+            var result = whatsAppCloudApiService.sendDocumentUpload(
+                    orgId,
+                    request.to(),
+                    bytes,
+                    request.filename(),
+                    request.mimeType(),
+                    request.caption());
+            return new WhatsAppCloudSendResponse(result.messageId(), result.mediaId());
+        }
+        String messageId = whatsAppCloudApiService.sendDocumentByLink(
+                orgId,
+                request.to(),
+                request.documentUrl(),
+                request.filename(),
+                request.caption());
+        return new WhatsAppCloudSendResponse(messageId, null);
     }
 
     // --- Formularios ---

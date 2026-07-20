@@ -2,8 +2,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { api } from '../../api'
 import AdminFormModal from '../../components/AdminFormModal'
 import HorizontalSwitch from '../../components/HorizontalSwitch'
-import type { MembershipPackage, User } from '../../types'
+import MemberSearchSelect from '../../components/MemberSearchSelect'
 import MultiSelect from '../../components/MultiSelect'
+import WhatsAppOutboundPicker from '../../components/WhatsAppOutboundPicker'
+import type { BroadcastMessageTemplate, MembershipPackage, User } from '../../types'
 import { useFilteredList } from '../../hooks/useFilteredList'
 import { useDateFormat } from '../../preferences/useDateFormat'
 import { useToast } from '../../toast'
@@ -15,6 +17,20 @@ import {
   isValidWhatsappLocal,
   whatsappPhoneToLocalDisplay,
 } from '../../utils/whatsappPhone'
+import {
+  listSavedWhatsappContacts,
+  removeSavedWhatsappContact,
+  saveWhatsappContact,
+  type SavedWhatsappContact,
+} from '../../utils/whatsappProspectContacts'
+import {
+  defaultOutboundForPackage,
+  EMPTY_WHATSAPP_OUTBOUND,
+  hasWhatsAppOutboundSelection,
+  resolveWhatsAppOutboundResult,
+  withWelcomeOutbound,
+  type WhatsAppOutboundSelection,
+} from '../../utils/whatsappOutbound'
 import { DEFAULT_PASSWORD } from './constants'
 import { formatRoles, GYM_ROLES, MEMBERSHIP_STATUS_LABELS, membershipStatusBadgeClass, ROLE_LABELS, type GymRole } from '../../roles'
 
@@ -27,7 +43,6 @@ const emptyForm = () => ({
   whatsappPhone: '',
   roles: ['MEMBER'] as GymRole[],
   membershipPackageId: '' as string | number,
-  sendRegistrationForm: true,
 })
 
 export default function UsersSection() {
@@ -35,17 +50,34 @@ export default function UsersSection() {
   const { showApiError, showSuccess } = useToast()
   const [users, setUsers] = useState<User[]>([])
   const [packages, setPackages] = useState<MembershipPackage[]>([])
+  const [templates, setTemplates] = useState<BroadcastMessageTemplate[]>([])
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [form, setForm] = useState(emptyForm())
+  const [createOutbound, setCreateOutbound] = useState<WhatsAppOutboundSelection>(EMPTY_WHATSAPP_OUTBOUND)
+  /** Al crear miembro: enviar bienvenida del plan (por defecto sí). */
+  const [sendWelcomeOnCreate, setSendWelcomeOnCreate] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [resendingForm, setResendingForm] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
+
+  const [waModalOpen, setWaModalOpen] = useState(false)
+  const [waPickUser, setWaPickUser] = useState(false)
+  const [waSendToAll, setWaSendToAll] = useState(false)
+  /** member | phone | all — destinatario del envío de formulario */
+  const [waRecipientMode, setWaRecipientMode] = useState<'member' | 'phone'>('member')
+  const [waTargetUserId, setWaTargetUserId] = useState<number | ''>('')
+  const [waGuestPhone, setWaGuestPhone] = useState('')
+  const [waGuestFirstName, setWaGuestFirstName] = useState('')
+  const [waSaveGuestContact, setWaSaveGuestContact] = useState(true)
+  const [waSavedContacts, setWaSavedContacts] = useState<SavedWhatsappContact[]>(() => listSavedWhatsappContacts())
+  const [waOutbound, setWaOutbound] = useState<WhatsAppOutboundSelection>(EMPTY_WHATSAPP_OUTBOUND)
+  const [waSending, setWaSending] = useState(false)
 
   const isEditing = selectedId !== null
 
   const load = () => {
     api.getUsers().then(setUsers).catch(() => {})
     api.getPackages().then(setPackages).catch(() => {})
+    api.getBroadcastTemplates('WHATSAPP').then(setTemplates).catch(() => setTemplates([]))
   }
 
   useEffect(() => { load() }, [])
@@ -63,15 +95,40 @@ export default function UsersSection() {
   )
   const { filtered, filterInput } = useFilteredList(users, userSearchExtras)
 
+  const members = users.filter((u) => u.roles.includes('MEMBER') && u.active)
+  const usersWithWhatsApp = users.filter((u) => u.active && !!u.whatsappPhone?.trim())
+  const waTargetUser = waTargetUserId === '' ? null : users.find((u) => u.id === waTargetUserId) ?? null
+
+  const applyOutboundFeedback = (result: Parameters<typeof resolveWhatsAppOutboundResult>[0]) => {
+    const resolved = resolveWhatsAppOutboundResult(result)
+    if (resolved.isCloud) {
+      showSuccess('Mensajes enviados por WhatsApp (Cloud API).')
+    } else if (resolved.url) {
+      window.open(resolved.url, '_blank', 'noopener,noreferrer')
+      showSuccess('Se abrió WhatsApp con los mensajes seleccionados.')
+    } else {
+      showSuccess('Mensajes preparados.')
+    }
+  }
+
+  const outboundDefaultsForUser = (user: User): WhatsAppOutboundSelection => {
+    const matchedPackage = packages.find((p) => p.name === user.membershipPackageName)
+    return defaultOutboundForPackage(templates, matchedPackage?.id ?? '')
+  }
+
   const closeModal = () => {
     setModalOpen(false)
     setSelectedId(null)
     setForm(emptyForm())
+    setCreateOutbound(EMPTY_WHATSAPP_OUTBOUND)
+    setSendWelcomeOnCreate(true)
   }
 
   const openCreate = () => {
     setSelectedId(null)
     setForm(emptyForm())
+    setCreateOutbound(EMPTY_WHATSAPP_OUTBOUND)
+    setSendWelcomeOnCreate(true)
     setModalOpen(true)
   }
 
@@ -87,9 +144,151 @@ export default function UsersSection() {
       whatsappPhone: whatsappPhoneToLocalDisplay(user.whatsappPhone),
       roles: user.roles.filter((r): r is GymRole => GYM_ROLES.includes(r as GymRole)),
       membershipPackageId: matchedPackage?.id ?? '',
-      sendRegistrationForm: true,
     })
+    setCreateOutbound(EMPTY_WHATSAPP_OUTBOUND)
+    setSendWelcomeOnCreate(true)
     setModalOpen(true)
+  }
+
+  const openWhatsappModalForUser = (user: User) => {
+    setWaPickUser(false)
+    setWaSendToAll(false)
+    setWaRecipientMode('member')
+    setWaTargetUserId(user.id)
+    setWaOutbound(outboundDefaultsForUser(user))
+    setWaModalOpen(true)
+  }
+
+  const openWhatsappModalPicker = () => {
+    setWaPickUser(true)
+    setWaSendToAll(false)
+    setWaRecipientMode('member')
+    setWaTargetUserId('')
+    setWaGuestPhone('')
+    setWaGuestFirstName('')
+    setWaSaveGuestContact(true)
+    setWaSavedContacts(listSavedWhatsappContacts())
+    setWaOutbound({ ...EMPTY_WHATSAPP_OUTBOUND, sendRegistrationForm: true })
+    setWaModalOpen(true)
+  }
+
+  const closeWhatsappModal = () => {
+    setWaModalOpen(false)
+    setWaPickUser(false)
+    setWaSendToAll(false)
+    setWaRecipientMode('member')
+    setWaTargetUserId('')
+    setWaGuestPhone('')
+    setWaGuestFirstName('')
+    setWaOutbound(EMPTY_WHATSAPP_OUTBOUND)
+  }
+
+  const handleWaSendToAllChange = (checked: boolean) => {
+    setWaSendToAll(checked)
+    if (checked) {
+      setWaRecipientMode('member')
+      setWaTargetUserId('')
+      setWaGuestPhone('')
+      setWaOutbound(EMPTY_WHATSAPP_OUTBOUND)
+    }
+  }
+
+  const handleWaRecipientModeChange = (mode: 'member' | 'phone') => {
+    setWaRecipientMode(mode)
+    setWaSendToAll(false)
+    if (mode === 'phone') {
+      setWaTargetUserId('')
+      setWaOutbound({ ...EMPTY_WHATSAPP_OUTBOUND, sendRegistrationForm: true })
+    } else {
+      setWaGuestPhone('')
+      setWaGuestFirstName('')
+      setWaOutbound(EMPTY_WHATSAPP_OUTBOUND)
+    }
+  }
+
+  const applySavedContact = (contact: SavedWhatsappContact) => {
+    setWaGuestPhone(contact.phoneLocal)
+    setWaGuestFirstName(contact.firstName)
+  }
+
+  const handleWaMemberChange = (memberId: number | '') => {
+    setWaTargetUserId(memberId)
+    if (memberId === '') {
+      setWaOutbound(EMPTY_WHATSAPP_OUTBOUND)
+      return
+    }
+    const user = users.find((u) => u.id === memberId)
+    setWaOutbound(user ? outboundDefaultsForUser(user) : EMPTY_WHATSAPP_OUTBOUND)
+  }
+
+  const handleSendWhatsappMessages = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!hasWhatsAppOutboundSelection(waOutbound)) {
+      showApiError(new Error('Selecciona al menos un mensaje'), 'Nada seleccionado')
+      return
+    }
+
+    const payload = {
+      sendRegistrationForm: waOutbound.sendRegistrationForm,
+      templateIds: waOutbound.templateIds,
+    }
+
+    setWaSending(true)
+    try {
+      if (waSendToAll) {
+        if (usersWithWhatsApp.length === 0) {
+          showApiError(new Error('No hay usuarios con WhatsApp'), 'Sin destinatarios')
+          return
+        }
+        const result = await api.sendWhatsappMessagesBulk(payload)
+        if (result.failedCount > 0) {
+          showSuccess(
+            `Enviado a ${result.sentCount} de ${result.recipientCount}. `
+              + `${result.failedCount} fallaron`
+              + (result.errors?.[0] ? `: ${result.errors[0]}` : '.'),
+          )
+        } else {
+          showSuccess(`Mensajes enviados a ${result.sentCount} usuario${result.sentCount === 1 ? '' : 's'} con WhatsApp.`)
+        }
+        closeWhatsappModal()
+        return
+      }
+
+      if (waPickUser && waRecipientMode === 'phone') {
+        if (!isValidWhatsappLocal(waGuestPhone)) {
+          showApiError(new Error('Indica un WhatsApp de 8 dígitos'), 'Número inválido')
+          return
+        }
+        const result = await api.sendWhatsappMessagesToPhone({
+          whatsappPhone: waGuestPhone,
+          firstName: waGuestFirstName.trim() || undefined,
+          ...payload,
+        })
+        if (waSaveGuestContact) {
+          saveWhatsappContact(waGuestPhone, waGuestFirstName)
+          setWaSavedContacts(listSavedWhatsappContacts())
+        }
+        applyOutboundFeedback(result)
+        closeWhatsappModal()
+        return
+      }
+
+      if (!waTargetUser) {
+        showApiError(new Error('Selecciona un miembro'), 'Miembro requerido')
+        return
+      }
+      if (!waTargetUser.whatsappPhone?.trim()) {
+        showApiError(new Error('El miembro no tiene WhatsApp'), 'Sin número de WhatsApp')
+        return
+      }
+      const result = await api.sendUserWhatsappMessages(waTargetUser.id, payload)
+      applyOutboundFeedback(result)
+      closeWhatsappModal()
+    } catch (err) {
+      showApiError(err, 'No se pudo preparar el envío por WhatsApp')
+    } finally {
+      setWaSending(false)
+    }
   }
 
   const requiresNationalId = true
@@ -105,6 +304,44 @@ export default function UsersSection() {
     : isValidWhatsappLocal(form.whatsappPhone)
   const formValid = namesValid && emailValid && nationalIdValid && membershipValid
     && passwordValid && rolesValid && whatsappValid
+
+  const handleMembershipChange = (membershipPackageId: string) => {
+    setForm((prev) => ({ ...prev, membershipPackageId }))
+    if (!isEditing && form.roles.includes('MEMBER')) {
+      setCreateOutbound((prev) =>
+        withWelcomeOutbound(prev, templates, membershipPackageId, sendWelcomeOnCreate),
+      )
+    }
+  }
+
+  const handleSendWelcomeChange = (checked: boolean) => {
+    setSendWelcomeOnCreate(checked)
+    if (!isEditing && form.roles.includes('MEMBER')) {
+      setCreateOutbound((prev) =>
+        withWelcomeOutbound(prev, templates, form.membershipPackageId, checked),
+      )
+    }
+  }
+
+  const handleRolesChange = (roles: GymRole[]) => {
+    setForm((prev) => ({ ...prev, roles }))
+    if (!roles.includes('MEMBER')) {
+      setCreateOutbound(EMPTY_WHATSAPP_OUTBOUND)
+      return
+    }
+    if (!isEditing) {
+      setCreateOutbound((prev) =>
+        withWelcomeOutbound(
+          prev.sendRegistrationForm || prev.templateIds.length > 0
+            ? prev
+            : EMPTY_WHATSAPP_OUTBOUND,
+          templates,
+          form.membershipPackageId,
+          sendWelcomeOnCreate,
+        ),
+      )
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -128,24 +365,26 @@ export default function UsersSection() {
       if (form.whatsappPhone.trim()) {
         payload.whatsappPhone = form.whatsappPhone.trim()
       }
-      if (!isEditing && form.roles.includes('MEMBER')) {
-        payload.sendRegistrationForm = form.sendRegistrationForm
-      }
+
       if (isEditing) {
         await api.updateUser(selectedId, payload)
+        showSuccess('Usuario actualizado')
       } else {
-        const result = await api.createUser(payload)
-        if (result.registrationFormWhatsappUrl) {
-          window.open(result.registrationFormWhatsappUrl, '_blank', 'noopener,noreferrer')
-          showSuccess('Usuario creado. Se abrió WhatsApp para enviar el formulario de registro.')
-        } else if (form.roles.includes('MEMBER') && form.sendRegistrationForm) {
-          if (!form.whatsappPhone.trim()) {
-            showSuccess('Usuario creado. Indica un número de WhatsApp para enviar el formulario.')
-          } else {
-            showSuccess('Usuario creado. Activa WhatsApp en Configuración para enviar el formulario.')
-          }
-        } else {
-          showSuccess('Usuario creado')
+        const outbound = withWelcomeOutbound(
+          createOutbound,
+          templates,
+          form.membershipPackageId,
+          sendWelcomeOnCreate,
+        )
+        const shouldSendWa = requiresMembership && hasWhatsAppOutboundSelection(outbound)
+        if (shouldSendWa) {
+          payload.sendRegistrationForm = outbound.sendRegistrationForm
+          payload.broadcastTemplateIds = outbound.templateIds
+        }
+        const created = await api.createUser(payload)
+        showSuccess('Usuario creado')
+        if (shouldSendWa) {
+          applyOutboundFeedback(created)
         }
       }
       closeModal()
@@ -157,27 +396,26 @@ export default function UsersSection() {
     }
   }
 
-  const handleResendRegistrationForm = async () => {
-    if (selectedId == null) return
-    setResendingForm(true)
-    try {
-      const result = await api.resendRegistrationForm(selectedId)
-      window.open(result.whatsappUrl, '_blank', 'noopener,noreferrer')
-      showSuccess('Se abrió WhatsApp con el formulario de registro.')
-    } catch (err) {
-      showApiError(err, 'No se pudo preparar el envío por WhatsApp')
-    } finally {
-      setResendingForm(false)
-    }
-  }
+  const waGuestPhoneValid = isValidWhatsappLocal(waGuestPhone)
+  const waSubmitDisabled = !hasWhatsAppOutboundSelection(waOutbound)
+    || (waSendToAll
+      ? usersWithWhatsApp.length === 0
+      : waPickUser && waRecipientMode === 'phone'
+        ? !waGuestPhoneValid
+        : !waTargetUser || !waTargetUser.whatsappPhone?.trim())
 
   return (
     <div className="admin-section">
       <div className="admin-list-toolbar">
         <div className="list-filter">{filterInput}</div>
-        <button type="button" className="btn-primary admin-list-create-btn" onClick={openCreate}>
-          Crear Usuario
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <button type="button" className="btn-secondary admin-list-create-btn" onClick={openWhatsappModalPicker}>
+            Enviar formulario
+          </button>
+          <button type="button" className="btn-primary admin-list-create-btn" onClick={openCreate}>
+            Crear Usuario
+          </button>
+        </div>
       </div>
 
       {users.length === 0 ? (
@@ -245,6 +483,20 @@ export default function UsersSection() {
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.35rem', marginBottom: 0 }}>
                   Plan: {u.membershipPackageName}
                 </p>
+              )}
+              {u.roles.includes('MEMBER') && !!u.whatsappPhone && (
+                <div style={{ marginTop: '0.75rem' }}>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openWhatsappModalForUser(u)
+                    }}
+                  >
+                    Enviar mensaje de WhatsApp
+                  </button>
+                </div>
               )}
             </div>
           ))}
@@ -379,7 +631,7 @@ export default function UsersSection() {
           <MultiSelect
             options={GYM_ROLES.map((role) => ({ value: role, label: ROLE_LABELS[role] }))}
             value={form.roles}
-            onChange={(roles) => setForm((prev) => ({ ...prev, roles: roles as GymRole[] }))}
+            onChange={(roles) => handleRolesChange(roles as GymRole[])}
             placeholder="Escribe un rol y pulsa Enter…"
           />
           {form.roles.length === 0 && (
@@ -393,7 +645,7 @@ export default function UsersSection() {
             <label>Membresía</label>
             <select
               value={form.membershipPackageId}
-              onChange={(e) => setForm((prev) => ({ ...prev, membershipPackageId: e.target.value }))}
+              onChange={(e) => handleMembershipChange(e.target.value)}
               required
             >
               <option value="" disabled>Seleccionar plan…</option>
@@ -409,40 +661,274 @@ export default function UsersSection() {
           </div>
         )}
         {!isEditing && form.roles.includes('MEMBER') && (
-          <div className="user-registration-form-section">
+          <>
             <div className="form-group form-group--switch">
               <HorizontalSwitch
-                label="Enviar formulario de registro por WhatsApp"
+                id="create-user-send-welcome"
+                label="¿Enviar mensaje de bienvenida al crear?"
                 offLabel="No"
                 onLabel="Sí"
-                checked={form.sendRegistrationForm}
-                onChange={(checked) => setForm((prev) => ({
-                  ...prev,
-                  sendRegistrationForm: checked,
-                }))}
+                checked={sendWelcomeOnCreate}
+                onChange={handleSendWelcomeChange}
+                disabled={!form.whatsappPhone.trim() || !whatsappValid}
+              />
+              <p className="form-hint" style={{ marginTop: '0.35rem' }}>
+                {!form.whatsappPhone.trim() || !whatsappValid
+                  ? 'Indica un WhatsApp válido para poder enviar la bienvenida.'
+                  : form.membershipPackageId === ''
+                    ? 'Selecciona un plan para usar la plantilla de bienvenida asociada.'
+                    : sendWelcomeOnCreate
+                      ? 'Al crear el usuario se enviará la bienvenida del plan por WhatsApp.'
+                      : 'No se enviará el mensaje de bienvenida al finalizar.'}
+              </p>
+            </div>
+            <div className="form-group" style={{ marginTop: '0.5rem' }}>
+              <WhatsAppOutboundPicker
+                templates={templates}
+                packages={packages}
+                value={createOutbound}
+                onChange={(next) => {
+                  setCreateOutbound(next)
+                  const hasWelcome = next.templateIds.some((id) => {
+                    const template = templates.find((t) => t.id === id)
+                    return template?.purpose === 'WELCOME'
+                  })
+                  setSendWelcomeOnCreate(hasWelcome)
+                }}
+                membershipPackageId={form.membershipPackageId}
+                disabled={!whatsappValid || !form.whatsappPhone.trim()}
+                hint={
+                  !form.whatsappPhone.trim()
+                    ? 'Indica un WhatsApp válido para poder enviar mensajes al crear.'
+                    : 'También puedes incluir el formulario de registro u otras plantillas.'
+                }
               />
             </div>
-            <p className="text-muted" style={{ fontSize: '0.85rem', marginTop: '0.35rem' }}>
-              Se abrirá WhatsApp con el mensaje y el enlace al formulario de ingreso del gimnasio.
-            </p>
-          </div>
+          </>
         )}
         {isEditing && form.roles.includes('MEMBER') && (
-          <div className="user-registration-form-section">
-            <button
-              type="button"
-              className="btn-secondary"
-              disabled={resendingForm || !form.whatsappPhone.trim()}
-              onClick={handleResendRegistrationForm}
-            >
-              {resendingForm ? 'Preparando…' : 'Volver a enviar formulario de registro'}
-            </button>
-            <p className="text-muted" style={{ fontSize: '0.85rem', marginTop: '0.35rem' }}>
-              Se abrirá WhatsApp (Web o app de Windows) con el enlace al formulario de registro.
-              {!form.whatsappPhone.trim() && ' Indica un número de WhatsApp para habilitar el envío.'}
-            </p>
+          <p className="form-hint" style={{ marginTop: '0.5rem' }}>
+            Para enviar formularios o plantillas usa <strong>Enviar formulario</strong> en la barra
+            o <strong>Enviar mensaje de WhatsApp</strong> en la tarjeta del usuario.
+          </p>
+        )}
+      </AdminFormModal>
+
+      <AdminFormModal
+        title="Enviar formulario / WhatsApp"
+        open={waModalOpen}
+        onClose={closeWhatsappModal}
+        onSubmit={handleSendWhatsappMessages}
+        saving={waSending}
+        submitLabel={waSendToAll ? `Enviar a ${usersWithWhatsApp.length}` : 'Enviar'}
+        submitDisabled={waSubmitDisabled}
+        intro={(
+          <p className="admin-form-intro">
+            {waSendToAll
+              ? 'Se enviará a todos los usuarios activos con WhatsApp (requiere Cloud API).'
+              : waPickUser && waRecipientMode === 'phone'
+                ? 'Envía el formulario o plantillas a un número libre (prospecto / pre-inscripción). El enlace es público, sin usuario creado.'
+                : 'Elige el miembro y los mensajes (formulario de registro o plantillas). La bienvenida del plan queda activa por defecto cuando aplica.'}
+          </p>
+        )}
+      >
+        {waPickUser && (
+          <div className="form-group wa-send-all-row">
+            <div className="wa-outbound-picker-row" style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.65rem 0.75rem' }}>
+              <div className="wa-outbound-picker-row-text">
+                <strong>Enviar a todos con WhatsApp</strong>
+                <span className="text-muted">
+                  {usersWithWhatsApp.length === 0
+                    ? 'No hay usuarios activos con número'
+                    : `${usersWithWhatsApp.length} usuario${usersWithWhatsApp.length === 1 ? '' : 's'} con número`}
+                </span>
+              </div>
+              <HorizontalSwitch
+                compact
+                label="Enviar a todos con WhatsApp"
+                checked={waSendToAll}
+                onChange={handleWaSendToAllChange}
+                disabled={usersWithWhatsApp.length === 0}
+              />
+            </div>
           </div>
         )}
+
+        {waPickUser && !waSendToAll && (
+          <div className="form-group">
+            <label className="form-label">Destinatario</label>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className={waRecipientMode === 'member' ? 'btn-primary' : 'btn-secondary'}
+                onClick={() => handleWaRecipientModeChange('member')}
+              >
+                Miembro
+              </button>
+              <button
+                type="button"
+                className={waRecipientMode === 'phone' ? 'btn-primary' : 'btn-secondary'}
+                onClick={() => handleWaRecipientModeChange('phone')}
+              >
+                Número libre
+              </button>
+            </div>
+          </div>
+        )}
+
+        {waPickUser && !waSendToAll && waRecipientMode === 'member' ? (
+          <div className="form-group">
+            <MemberSearchSelect
+              members={members}
+              value={waTargetUserId}
+              onChange={handleWaMemberChange}
+              label="Miembro"
+              placeholder="Buscar miembro…"
+              required
+            />
+            {waTargetUser && !waTargetUser.whatsappPhone?.trim() && (
+              <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginTop: '0.35rem' }}>
+                Este miembro no tiene WhatsApp. Edítalo para agregar el número.
+              </p>
+            )}
+          </div>
+        ) : waPickUser && !waSendToAll && waRecipientMode === 'phone' ? (
+          <>
+            <div className="form-group">
+              <label htmlFor="wa-guest-name">Nombre (opcional)</label>
+              <input
+                id="wa-guest-name"
+                type="text"
+                value={waGuestFirstName}
+                onChange={(e) => setWaGuestFirstName(e.target.value)}
+                placeholder="Ej. Ana"
+                autoComplete="given-name"
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="wa-guest-phone">WhatsApp</label>
+              <div className="phone-input-group">
+                <input
+                  type="text"
+                  className="phone-input-prefix"
+                  value={COSTA_RICA_WHATSAPP_CODE}
+                  disabled
+                  readOnly
+                  aria-label="Código de país Costa Rica"
+                />
+                <input
+                  id="wa-guest-phone"
+                  type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel-national"
+                  value={waGuestPhone}
+                  onChange={(e) => setWaGuestPhone(formatWhatsappLocalInput(e.target.value))}
+                  placeholder="88887777"
+                  maxLength={8}
+                  required
+                />
+              </div>
+              {!waGuestPhoneValid && waGuestPhone.length > 0 && (
+                <p style={{ color: 'var(--danger)', fontSize: '0.85rem', marginTop: '0.35rem' }}>
+                  Debe tener 8 dígitos.
+                </p>
+              )}
+            </div>
+            <div className="form-group">
+              <div className="wa-outbound-picker-row" style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.65rem 0.75rem' }}>
+                <div className="wa-outbound-picker-row-text">
+                  <strong>Guardar este número</strong>
+                  <span className="text-muted">Queda en este navegador / app de escritorio para reutilizarlo.</span>
+                </div>
+                <HorizontalSwitch
+                  compact
+                  label="Guardar este número"
+                  checked={waSaveGuestContact}
+                  onChange={setWaSaveGuestContact}
+                />
+              </div>
+            </div>
+            {waSavedContacts.length > 0 && (
+              <div className="form-group">
+                <label className="form-label">Números guardados</label>
+                <ul className="wa-saved-contacts-list" style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '0.35rem' }}>
+                  {waSavedContacts.map((c) => (
+                    <li
+                      key={c.phoneLocal}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        flexWrap: 'wrap',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius)',
+                        padding: '0.45rem 0.6rem',
+                      }}
+                    >
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        style={{ flex: 1, textAlign: 'left' }}
+                        onClick={() => applySavedContact(c)}
+                      >
+                        {c.firstName ? `${c.firstName} · ` : ''}
+                        {COSTA_RICA_WHATSAPP_CODE} {c.phoneLocal}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        aria-label="Quitar número guardado"
+                        onClick={() => {
+                          removeSavedWhatsappContact(c.phoneLocal)
+                          setWaSavedContacts(listSavedWhatsappContacts())
+                        }}
+                      >
+                        Quitar
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </>
+        ) : !waPickUser && waTargetUser ? (
+          <p className="admin-form-intro" style={{ marginTop: 0 }}>
+            Mensajes para {waTargetUser.firstName} {waTargetUser.lastName}
+            {waTargetUser.whatsappPhone ? ` (${waTargetUser.whatsappPhone})` : ''}.
+          </p>
+        ) : null}
+
+        <WhatsAppOutboundPicker
+          templates={templates}
+          packages={packages}
+          value={waOutbound}
+          onChange={setWaOutbound}
+          membershipPackageId={
+            !waSendToAll && waRecipientMode === 'member' && waTargetUser
+              ? packages.find((p) => p.name === waTargetUser.membershipPackageName)?.id ?? ''
+              : ''
+          }
+          disabled={
+            waSendToAll
+              ? usersWithWhatsApp.length === 0
+              : waPickUser && waRecipientMode === 'phone'
+                ? !waGuestPhoneValid
+                : !waTargetUser || !waTargetUser.whatsappPhone?.trim()
+          }
+          hint={
+            waSendToAll
+              ? 'Activa los mensajes que quieres enviar a todos. Requiere Cloud API.'
+              : waPickUser && waRecipientMode === 'phone'
+                ? !waGuestPhoneValid
+                  ? 'Indica un WhatsApp válido de 8 dígitos.'
+                  : 'El formulario se envía con enlace público (sin miembro creado).'
+                : !waTargetUser
+                  ? 'Selecciona un miembro para ver y activar mensajes.'
+                  : !waTargetUser.whatsappPhone?.trim()
+                    ? 'Sin número de WhatsApp no se puede enviar.'
+                    : undefined
+          }
+        />
       </AdminFormModal>
     </div>
   )

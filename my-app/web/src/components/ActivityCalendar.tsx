@@ -22,6 +22,9 @@ type Props = {
   activities: Activity[]
   editable?: boolean
   onActivityEdit?: (activity: Activity) => void
+  /** Click sin modo edición (miembro: reservar / cancelar). */
+  onActivitySelect?: (activity: Activity) => void
+  isReserved?: (activity: Activity) => boolean
   onCreateActivity?: () => void
   onCreateSlot?: (dateIso: string, startMin: number, endMin: number) => void
   onMoveOccurrence?: (
@@ -32,9 +35,12 @@ type Props = {
   ) => void
   onScheduleConflict?: () => void
   onRangeChange?: (from: string, to: string) => void
+  /** Vistas disponibles; por defecto todas. */
+  views?: CalendarView[]
+  defaultView?: CalendarView
 }
 
-const VIEWS: { id: CalendarView; label: string }[] = [
+const DEFAULT_VIEWS: { id: CalendarView; label: string }[] = [
   { id: 'day', label: 'Día' },
   { id: 'week', label: 'Semana' },
   { id: 'month', label: 'Mes' },
@@ -49,14 +55,26 @@ export default function ActivityCalendar({
   activities,
   editable = false,
   onActivityEdit,
+  onActivitySelect,
+  isReserved,
   onCreateActivity,
   onCreateSlot,
   onMoveOccurrence,
   onScheduleConflict,
   onRangeChange,
+  views,
+  defaultView = 'week',
 }: Props) {
   const { formatPeriodLabel } = useDateFormat()
-  const [view, setView] = useState<CalendarView>('week')
+  const viewOptions = useMemo(
+    () => (views?.length
+      ? DEFAULT_VIEWS.filter((v) => views.includes(v.id))
+      : DEFAULT_VIEWS),
+    [views],
+  )
+  const [view, setView] = useState<CalendarView>(
+    () => viewOptions.find((v) => v.id === defaultView)?.id ?? viewOptions[0]?.id ?? 'week',
+  )
   const [anchor, setAnchor] = useState(() => new Date())
 
   const range = useMemo(() => getRangeForView(view, anchor), [view, anchor])
@@ -70,12 +88,21 @@ export default function ActivityCalendar({
   }, [range.from, range.to, onRangeChange])
 
   const goToday = () => setAnchor(new Date())
+  const activityClick = onActivityEdit ?? onActivitySelect
+
+  const pillClass = (a: Activity) => {
+    const reserved = isReserved?.(a) === true
+    return {
+      allDay: `activity-all-day-pill${isActivityFull(a) ? ' activity-all-day-pill--full' : ''}${a.occurrenceCancelled ? ' activity-all-day-pill--cancelled' : ''}${reserved ? ' activity-all-day-pill--reserved' : ''}`,
+      timed: `appointment-month-pill activity-month-pill${a.hasOccurrenceOverride ? ' activity-month-pill--override' : ''}${isActivityFull(a) ? ' activity-month-pill--full' : ''}${a.occurrenceCancelled ? ' activity-month-pill--cancelled' : ''}${reserved ? ' activity-month-pill--reserved' : ''}`,
+    }
+  }
 
   return (
     <div className="appointment-calendar card appointment-calendar--gcal">
       <div className="calendar-toolbar appointment-gcal-toolbar">
         <div className="calendar-view-tabs">
-          {VIEWS.map((v) => (
+          {viewOptions.map((v) => (
             <button
               key={v.id}
               type="button"
@@ -105,6 +132,12 @@ export default function ActivityCalendar({
         </p>
       )}
 
+      {!editable && onActivitySelect && (view === 'day' || view === 'week' || view === 'month') && (
+        <p className="calendar-hint">
+          Toca una actividad para reservar o cancelar tu asistencia.
+        </p>
+      )}
+
       {(view === 'day' || view === 'week') && (
         <ActivityTimeline
           activities={activities}
@@ -112,6 +145,8 @@ export default function ActivityCalendar({
           anchor={anchor}
           editable={editable}
           onActivityEdit={onActivityEdit}
+          onActivitySelect={onActivitySelect}
+          isReserved={isReserved}
           onCreateSlot={editable ? onCreateSlot : undefined}
           onMoveOccurrence={editable ? onMoveOccurrence : undefined}
           onScheduleConflict={onScheduleConflict}
@@ -141,34 +176,33 @@ export default function ActivityCalendar({
                       className={`calendar-month-cell${inMonth ? '' : ' muted'}${isSameDay(day, new Date()) ? ' today' : ''}${dayActs.some(isAllDayActivity) ? ' calendar-month-cell--all-day' : ''}`}
                     >
                       <span className="calendar-day-num">{day.getDate()}</span>
-                      {dayActs.filter(isAllDayActivity).map((a) => (
-                        editable && onActivityEdit ? (
+                      {dayActs.filter(isAllDayActivity).map((a) => {
+                        const cls = pillClass(a).allDay
+                        return activityClick ? (
                           <button
                             key={activityKey(a)}
                             type="button"
-                            className={`activity-all-day-pill${isActivityFull(a) ? ' activity-all-day-pill--full' : ''}${a.occurrenceCancelled ? ' activity-all-day-pill--cancelled' : ''}`}
-                            onClick={() => onActivityEdit(a)}
+                            className={cls}
+                            onClick={() => activityClick(a)}
                           >
                             <span className="activity-all-day-pill-name">{a.name}</span>
                             <ActivityCapacityDisplay activity={a} compact className="activity-month-pill-capacity" />
                           </button>
                         ) : (
-                          <span
-                            key={activityKey(a)}
-                            className={`activity-all-day-pill${isActivityFull(a) ? ' activity-all-day-pill--full' : ''}${a.occurrenceCancelled ? ' activity-all-day-pill--cancelled' : ''}`}
-                          >
+                          <span key={activityKey(a)} className={cls}>
                             <span className="activity-all-day-pill-name">{a.name}</span>
                             <ActivityCapacityDisplay activity={a} compact className="activity-month-pill-capacity" />
                           </span>
                         )
-                      ))}
-                      {dayActs.filter((a) => !isAllDayActivity(a)).map((a) => (
-                        editable && onActivityEdit ? (
+                      })}
+                      {dayActs.filter((a) => !isAllDayActivity(a)).map((a) => {
+                        const cls = pillClass(a).timed
+                        return activityClick ? (
                           <button
                             key={activityKey(a)}
                             type="button"
-                            className={`appointment-month-pill activity-month-pill${a.hasOccurrenceOverride ? ' activity-month-pill--override' : ''}${isActivityFull(a) ? ' activity-month-pill--full' : ''}${a.occurrenceCancelled ? ' activity-month-pill--cancelled' : ''}`}
-                            onClick={() => onActivityEdit(a)}
+                            className={cls}
+                            onClick={() => activityClick(a)}
                           >
                             <span className="activity-month-pill-time">{formatActivityScheduleFromActivity(a)}</span>
                             <span className="activity-month-pill-name">
@@ -178,16 +212,13 @@ export default function ActivityCalendar({
                             <ActivityCapacityDisplay activity={a} compact className="activity-month-pill-capacity" />
                           </button>
                         ) : (
-                          <span
-                            key={activityKey(a)}
-                            className={`appointment-month-pill activity-month-pill${isActivityFull(a) ? ' activity-month-pill--full' : ''}${a.occurrenceCancelled ? ' activity-month-pill--cancelled' : ''}`}
-                          >
+                          <span key={activityKey(a)} className={cls}>
                             <span className="activity-month-pill-time">{formatActivityScheduleFromActivity(a)}</span>
                             <span className="activity-month-pill-name">{a.name}</span>
                             <ActivityCapacityDisplay activity={a} compact className="activity-month-pill-capacity" />
                           </span>
                         )
-                      ))}
+                      })}
                     </div>,
                   )
                 }

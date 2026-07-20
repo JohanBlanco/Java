@@ -441,6 +441,9 @@ public class CashRegisterService {
     private BigDecimal salesNetForSession(Long sessionId) {
         BigDecimal net = BigDecimal.ZERO;
         for (StoreSale sale : storeSaleRepository.findByCashSessionIdWithPayments(sessionId)) {
+            if (sale.isVoided()) {
+                continue;
+            }
             BigDecimal cash = sale.cashDrawerAmount();
             if (sale.getType() == StoreSaleType.MANUAL_EXPENSE) {
                 net = net.subtract(cash);

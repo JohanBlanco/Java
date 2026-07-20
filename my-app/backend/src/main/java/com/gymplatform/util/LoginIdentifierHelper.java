@@ -20,7 +20,7 @@ public final class LoginIdentifierHelper {
         }
 
         if (trimmed.contains("@")) {
-            return userRepository.findByEmail(trimmed);
+            return userRepository.findByEmailIgnoreCase(trimmed);
         }
 
         String nationalId = NationalIdHelper.normalize(trimmed);

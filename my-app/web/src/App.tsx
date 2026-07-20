@@ -1,7 +1,8 @@
-import { useState } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, NavLink, Outlet, useSearchParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, NavLink, Outlet, useSearchParams, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './auth'
 import { PreferencesProvider, usePreferences } from './preferences'
+import { OrgBrandProvider } from './orgBrand'
 import { ToastProvider } from './toast'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
@@ -15,6 +16,7 @@ import NavSectionLayout from './components/NavSectionLayout'
 import PackagesSection from './pages/gym-admin/PackagesSection'
 import UsersSection from './pages/gym-admin/UsersSection'
 import ProductsSection from './pages/reception/ProductsSection'
+import ActivitiesSection from './pages/reception/ActivitiesSection'
 import ReceptionLayout from './pages/reception/ReceptionLayout'
 import ReceptionCalendarioSection from './pages/reception/ReceptionCalendarioSection'
 import VentasLayout from './pages/ventas/VentasLayout'
@@ -25,7 +27,9 @@ import EstadisticasResumenSection from './pages/estadisticas/EstadisticasResumen
 import OperacionesIndexRedirect from './pages/inicio/OperacionesIndexRedirect'
 import AppointmentRequestsPage from './pages/inicio/AppointmentRequestsPage'
 import MemberActivitiesPage from './pages/inicio/MemberActivitiesPage'
-import MemberReservationsPage from './pages/inicio/MemberReservationsPage'
+import MemberHomePage from './pages/inicio/MemberHomePage'
+import MemberMyActivitiesPage from './pages/inicio/MemberMyActivitiesPage'
+import MemberMyAppointmentsPage from './pages/inicio/MemberMyAppointmentsPage'
 import MemberRoutinesPage from './pages/inicio/MemberRoutinesPage'
 import MemberMeasurementsPage from './pages/inicio/MemberMeasurementsPage'
 import MemberNutritionPage from './pages/inicio/MemberNutritionPage'
@@ -36,13 +40,20 @@ import MeasurementsSection from './pages/training/MeasurementsSection'
 import NutritionSection from './pages/training/NutritionSection'
 import AgendaLayout from './pages/agenda/AgendaLayout'
 import AgendaIndexRedirect from './pages/agenda/AgendaIndexRedirect'
+import MercadeoLayout from './pages/mercadeo/MercadeoLayout'
+import MercadeoActividadesPage from './pages/mercadeo/MercadeoActividadesPage'
+import MercadeoProductosPage from './pages/mercadeo/MercadeoProductosPage'
 import {
   ESTADISTICAS_SECTIONS,
+  MEMBER_FLAT_SECTIONS,
+  MEMBER_RESERVACIONES_SECTIONS,
   MEMBER_SECTIONS,
+  MERCADEO_SECTIONS,
   RECEPTION_SECTIONS,
   TRAINING_SECTIONS,
   VENTAS_SECTIONS,
   canViewAgenda,
+  getAgendaSections,
 } from './navigation/sections'
 import {
   canViewProfile,
@@ -50,6 +61,10 @@ import {
   canViewTrainingAdmin,
   canViewVentas,
   canViewEstadisticas,
+  canViewAdmin,
+  canViewAgendaCitas,
+  canViewAgendaActividades,
+  canViewMercadeo,
   hasRole,
   isMemberView,
 } from './roles'
@@ -62,10 +77,15 @@ import ExpedientesLegacyRedirect from './pages/expedientes/ExpedientesLegacyRedi
 
 function ProtectedLayout() {
   const { user, activeRole, setActiveRole, logout } = useAuth()
-  const { sidebarOpen, setSidebarOpen, toggleSidebar } = useSidebar()
+  const { sidebarOpen, setSidebarOpen, toggleSidebar, isMobile } = useSidebar()
   const { t } = usePreferences()
+  const location = useLocation()
   const [sidebarView, setSidebarView] = useState<'nav' | 'settings'>('nav')
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('theme')
+
+  useEffect(() => {
+    if (isMobile) setSidebarOpen(false)
+  }, [location.pathname, location.search, isMobile, setSidebarOpen])
 
   if (!user) return <Navigate to="/login" replace />
 
@@ -73,8 +93,10 @@ function ProtectedLayout() {
   const showVentas = canViewVentas(activeRole)
   const showEstadisticas = canViewEstadisticas(activeRole)
   const showReception = canViewReception(activeRole)
+  const showAdmin = canViewAdmin(activeRole)
   const showTraining = canViewTrainingAdmin(activeRole)
   const showAgenda = canViewAgenda(activeRole)
+  const showMercadeo = canViewMercadeo(activeRole)
   const showMemberNav = isMemberView(activeRole)
 
   const openSettings = () => {
@@ -86,8 +108,49 @@ function ProtectedLayout() {
   const closeSettings = () => setSidebarView('nav')
 
   return (
-    <div className={`layout${sidebarOpen ? '' : ' layout--sidebar-collapsed'}`}>
-      <nav className="sidebar" aria-hidden={!sidebarOpen}>
+    <div
+      className={[
+        'layout',
+        sidebarOpen ? '' : 'layout--sidebar-collapsed',
+        isMobile ? 'layout--mobile' : '',
+        isMobile && sidebarOpen ? 'layout--mobile-nav-open' : '',
+      ].filter(Boolean).join(' ')}
+    >
+      {isMobile && (
+        <header className="mobile-topbar">
+          <button
+            type="button"
+            className={`mobile-nav-toggle${sidebarOpen ? ' is-open' : ''}`}
+            onClick={toggleSidebar}
+            aria-label={sidebarOpen ? 'Cerrar menú' : 'Abrir menú'}
+            aria-expanded={sidebarOpen}
+            aria-controls="app-sidebar"
+          >
+            <span className="mobile-nav-toggle-bars" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </span>
+          </button>
+          <span className="mobile-topbar-brand">GymPlatform</span>
+        </header>
+      )}
+
+      {isMobile && sidebarOpen && (
+        <button
+          type="button"
+          className="mobile-nav-backdrop"
+          aria-label="Cerrar menú"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <nav
+        id="app-sidebar"
+        className="sidebar"
+        aria-hidden={!sidebarOpen}
+        aria-label="Navegación principal"
+      >
         <h2>GymPlatform</h2>
         <div className="sidebar-header">
           <UserMenu
@@ -103,12 +166,17 @@ function ProtectedLayout() {
           {sidebarView === 'settings' ? (
             <SettingsSidebar
               activeSection={settingsSection}
-              onSectionChange={setSettingsSection}
+              onSectionChange={(section) => {
+                setSettingsSection(section)
+                if (isMobile) setSidebarOpen(false)
+              }}
               onBack={closeSettings}
               showBroadcastSettings={showReception}
               showFormsSettings={showReception}
               showForumsSettings={showReception || showTraining}
               showCashSettings={showReception}
+              showPrivateAccess={showAdmin}
+              showGymProfile={showAdmin}
             />
           ) : isPlatform ? (
             <NavLink to="/platform" className={({ isActive }) => isActive ? 'active' : ''}>
@@ -120,20 +188,28 @@ function ProtectedLayout() {
                 {t('nav.home')}
               </NavLink>
               {showMemberNav && (
-                <CollapsibleNavGroup
-                  id="servicios"
-                  label={t('nav.services')}
-                  basePath="/servicios"
-                  sections={MEMBER_SECTIONS}
-                />
-              )}
-              {showAgenda && (
-                <NavLink
-                  to="/agenda"
-                  className={({ isActive }) => (isActive ? 'active' : '')}
-                >
-                  {t('nav.agenda')}
-                </NavLink>
+                <>
+                  <CollapsibleNavGroup
+                    id="reservaciones"
+                    label={t('nav.reservaciones')}
+                    basePath="/servicios"
+                    sections={MEMBER_RESERVACIONES_SECTIONS}
+                  />
+                  {MEMBER_FLAT_SECTIONS.map((section) => (
+                    <NavLink
+                      key={section.path}
+                      to={`/servicios/${section.path}`}
+                      className={({ isActive }) =>
+                        `sidebar-sub-link${isActive ? ' active' : ''}`
+                      }
+                    >
+                      <span className="sidebar-sub-link-label">{section.label}</span>
+                      {section.badge && (
+                        <span className="nav-beta-badge">{section.badge}</span>
+                      )}
+                    </NavLink>
+                  ))}
+                </>
               )}
               {showVentas && (
                 <CollapsibleNavGroup
@@ -151,12 +227,28 @@ function ProtectedLayout() {
                   sections={RECEPTION_SECTIONS}
                 />
               )}
+              {showAgenda && (
+                <CollapsibleNavGroup
+                  id="agenda"
+                  label={t('nav.agenda')}
+                  basePath="/agenda"
+                  sections={getAgendaSections(activeRole)}
+                />
+              )}
               {showTraining && (
                 <CollapsibleNavGroup
                   id="training"
                   label={t('nav.training')}
                   basePath="/training"
                   sections={TRAINING_SECTIONS}
+                />
+              )}
+              {showMercadeo && (
+                <CollapsibleNavGroup
+                  id="mercadeo"
+                  label={t('nav.marketing')}
+                  basePath="/mercadeo"
+                  sections={MERCADEO_SECTIONS}
                 />
               )}
               {showEstadisticas && (
@@ -171,15 +263,17 @@ function ProtectedLayout() {
           )}
         </div>
       </nav>
-      <button
-        type="button"
-        className="sidebar-edge-toggle"
-        onClick={toggleSidebar}
-        aria-label={sidebarOpen ? 'Ocultar menú lateral' : 'Mostrar menú lateral'}
-        aria-expanded={sidebarOpen}
-      >
-        {sidebarOpen ? '‹' : '›'}
-      </button>
+      {!isMobile && (
+        <button
+          type="button"
+          className="sidebar-edge-toggle"
+          onClick={toggleSidebar}
+          aria-label={sidebarOpen ? 'Ocultar menú lateral' : 'Mostrar menú lateral'}
+          aria-expanded={sidebarOpen}
+        >
+          {sidebarOpen ? '‹' : '›'}
+        </button>
+      )}
       <main className="main">
         <div className="main-content">
           {sidebarView === 'settings' ? (
@@ -193,9 +287,21 @@ function ProtectedLayout() {
   )
 }
 
-function OpsGuard() {
+function VentasGuard() {
+  const { user, activeRole } = useAuth()
+  if (!user || !canViewVentas(activeRole)) return <Navigate to="/" replace />
+  return <Outlet />
+}
+
+function ReceptionGuard() {
   const { user, activeRole } = useAuth()
   if (!user || !canViewReception(activeRole)) return <Navigate to="/" replace />
+  return <Outlet />
+}
+
+function EstadisticasGuard() {
+  const { user, activeRole } = useAuth()
+  if (!user || !canViewEstadisticas(activeRole)) return <Navigate to="/" replace />
   return <Outlet />
 }
 
@@ -223,9 +329,15 @@ function AgendaGuard() {
   return <Outlet />
 }
 
+function MercadeoGuard() {
+  const { user, activeRole } = useAuth()
+  if (!user || !canViewMercadeo(activeRole)) return <Navigate to="/" replace />
+  return <Outlet />
+}
+
 function AgendaCitasPage() {
   const { activeRole } = useAuth()
-  if (!canViewTrainingAdmin(activeRole)) {
+  if (!canViewAgendaCitas(activeRole)) {
     return <Navigate to="/agenda/actividades" replace />
   }
   return <AppointmentsSection />
@@ -233,7 +345,7 @@ function AgendaCitasPage() {
 
 function AgendaActividadesPage() {
   const { activeRole } = useAuth()
-  if (!canViewReception(activeRole)) {
+  if (!canViewAgendaActividades(activeRole)) {
     return <Navigate to="/agenda/citas" replace />
   }
   return <ReceptionCalendarioSection />
@@ -268,16 +380,18 @@ function AppRoutes() {
         <Route path="/operaciones/:section" element={<OperacionesIndexRedirect />} />
 
         <Route path="/servicios" element={<MemberGuard />}>
+          <Route index element={<MemberHomePage />} />
           <Route element={
             <NavSectionLayout
               sections={MEMBER_SECTIONS}
-              fallbackTitle="Servicios"
-              fallbackDescription="Actividades, reservaciones y citas"
+              fallbackTitle="Reservaciones"
+              fallbackDescription="Agenda clases y citas, o revisa lo tuyo"
             />
           }>
-            <Route index element={<Navigate to="actividades" replace />} />
             <Route path="actividades" element={<MemberActivitiesPage />} />
-            <Route path="reservaciones" element={<MemberReservationsPage />} />
+            <Route path="reservaciones" element={<Navigate to="/servicios/actividades" replace />} />
+            <Route path="mis-actividades" element={<MemberMyActivitiesPage />} />
+            <Route path="mis-citas" element={<MemberMyAppointmentsPage />} />
             <Route path="rutinas" element={<MemberRoutinesPage />} />
             <Route path="medidas" element={<MemberMeasurementsPage />} />
             <Route path="nutricion" element={<MemberNutritionPage />} />
@@ -298,7 +412,7 @@ function AppRoutes() {
 
         <Route path="/platform" element={<PlatformPage />} />
 
-        <Route path="/ventas" element={<OpsGuard />}>
+        <Route path="/ventas" element={<VentasGuard />}>
           <Route element={<VentasLayout />}>
             <Route index element={<Navigate to="punto-de-venta" replace />} />
             <Route path="punto-de-venta" element={<TiendaPuntoDeVentaSection />} />
@@ -307,24 +421,24 @@ function AppRoutes() {
           </Route>
         </Route>
 
-        <Route path="/estadisticas" element={<OpsGuard />}>
+        <Route path="/estadisticas" element={<EstadisticasGuard />}>
           <Route element={<EstadisticasLayout />}>
             <Route index element={<Navigate to="resumen" replace />} />
             <Route path="resumen" element={<EstadisticasResumenSection />} />
           </Route>
         </Route>
 
-        <Route path="/reception" element={<OpsGuard />}>
+        <Route path="/reception" element={<ReceptionGuard />}>
           <Route element={<ReceptionLayout />}>
             <Route index element={<Navigate to="usuarios" replace />} />
             <Route path="pagos-pendientes" element={<Navigate to="/?panel=pendientes-de-pago" replace />} />
             <Route path="pendientes-de-pago" element={<Navigate to="/?panel=pendientes-de-pago" replace />} />
-            <Route path="actividades" element={<Navigate to="/agenda/actividades" replace />} />
             <Route path="actividades-hoy" element={<Navigate to="/?panel=actividades-hoy" replace />} />
             <Route path="calendario" element={<Navigate to="/agenda/actividades" replace />} />
             <Route path="membresias" element={<PackagesSection />} />
             <Route path="usuarios" element={<UsersSection />} />
             <Route path="productos" element={<ProductsSection />} />
+            <Route path="actividades" element={<ActivitiesSection />} />
             <Route path="expedientes" element={<MemberFilesPage />} />
             <Route path="expedientes/usuario/:userId" element={<MemberFilesPage />} />
             <Route path="expedientes/usuario/:userId/archivo/:submissionId" element={<MemberFilesPage />} />
@@ -349,6 +463,15 @@ function AppRoutes() {
           </Route>
         </Route>
 
+        <Route path="/mercadeo" element={<MercadeoGuard />}>
+          <Route element={<MercadeoLayout />}>
+            <Route index element={<Navigate to="actividades" replace />} />
+            <Route path="actividades" element={<MercadeoActividadesPage />} />
+            <Route path="productos" element={<MercadeoProductosPage />} />
+            <Route path="decoracion" element={<Navigate to="/mercadeo/actividades" replace />} />
+          </Route>
+        </Route>
+
         <Route path="/admin" element={<Navigate to="/reception/usuarios" replace />} />
         <Route path="/admin/membresias" element={<Navigate to="/reception/membresias" replace />} />
         <Route path="/admin/usuarios" element={<Navigate to="/reception/usuarios" replace />} />
@@ -368,11 +491,13 @@ export default function App() {
     <PreferencesProvider>
       <GlobalUIScale />
       <AuthProvider>
-        <BrowserRouter>
-          <ToastProvider>
-            <AppRoutes />
-          </ToastProvider>
-        </BrowserRouter>
+        <OrgBrandProvider>
+          <BrowserRouter>
+            <ToastProvider>
+              <AppRoutes />
+            </ToastProvider>
+          </BrowserRouter>
+        </OrgBrandProvider>
       </AuthProvider>
     </PreferencesProvider>
   )

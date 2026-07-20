@@ -1,6 +1,6 @@
 export { PreferencesProvider, usePreferences } from './PreferencesProvider'
 export { useDateFormat } from './useDateFormat'
-export { applyPreferences, loadPreferences, savePreferences, STORAGE_KEY } from './storage'
+export { applyPreferences, applyOrgBrand, loadPreferences, savePreferences, STORAGE_KEY } from './storage'
 export { translate, useTranslate, type MessageKey } from './i18n'
 export {
   ACCENT_OPTIONS,

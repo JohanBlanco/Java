@@ -42,6 +42,7 @@ export default function PlatformPage() {
       ownerFirstName: org.ownerFirstName ?? '',
       ownerLastName: org.ownerLastName ?? '',
       ownerEmail: org.ownerEmail ?? org.contactEmail,
+      ownerNationalId: '',
       password: DEFAULT_PASSWORD,
       subscriptionStatus: org.subscriptionStatus,
     })

@@ -1,3 +1,5 @@
+import { canViewAgendaCitas } from '../roles'
+
 export type NavSection = {
   path: string
   label: string
@@ -22,16 +24,32 @@ export const VENTAS_SECTIONS: NavSection[] = [
 ]
 
 export const ESTADISTICAS_SECTIONS: NavSection[] = [
-  { path: 'resumen', label: 'Resumen general', description: 'Indicadores operativos del gimnasio' },
+  {
+    path: 'resumen',
+    label: 'Dashboard',
+    description: 'Finanzas del gym: ingresos, gastos y ventas en gráficas fáciles de leer',
+  },
 ]
 
-export const MEMBER_SECTIONS: NavSection[] = [
-  { path: 'actividades', label: 'Actividades', description: 'Clases y eventos disponibles' },
-  { path: 'reservaciones', label: 'Mis reservaciones', description: 'Tus cupos en actividades' },
+/** Grupo Reservaciones: explorar y agendar */
+export const MEMBER_RESERVACIONES_SECTIONS: NavSection[] = [
+  { path: 'actividades', label: 'Actividades', description: 'Explora clases y reserva tu cupo' },
+  { path: 'solicitudes-citas', label: 'Citas', description: 'Elige un horario disponible' },
+]
+
+/** Ítems planos del miembro (fuera de Reservaciones) */
+export const MEMBER_FLAT_SECTIONS: NavSection[] = [
+  { path: 'mis-actividades', label: 'Mis actividades', description: 'Clases que ya reservaste' },
+  { path: 'mis-citas', label: 'Mis citas', description: 'Citas que ya agendaste' },
   { path: 'rutinas', label: 'Mis rutinas', description: 'Rutinas asignadas por tu instructor' },
-  { path: 'medidas', label: 'Mis medidas', description: 'Composición corporal y recomendaciones', badge: 'Beta' },
-  { path: 'nutricion', label: 'Mi nutrición', description: 'Plan alimenticio asignado por tu instructor', badge: 'Beta' },
-  { path: 'solicitudes-citas', label: 'Citas', description: 'Consulta tus citas agendadas' },
+  { path: 'nutricion', label: 'Mi nutrición', description: 'Plan alimenticio asignado', badge: 'Beta' },
+  { path: 'medidas', label: 'Mis medidas', description: 'Composición corporal', badge: 'Beta' },
+]
+
+/** Todas las secciones miembro (para layouts / redirects) */
+export const MEMBER_SECTIONS: NavSection[] = [
+  ...MEMBER_RESERVACIONES_SECTIONS,
+  ...MEMBER_FLAT_SECTIONS,
 ]
 
 export const RECEPTION_SECTIONS: NavSection[] = [
@@ -53,6 +71,11 @@ export const RECEPTION_SECTIONS: NavSection[] = [
     ],
   },
   { path: 'productos', label: 'Productos', description: 'Inventario y catálogo de la tienda' },
+  {
+    path: 'actividades',
+    label: 'Actividades',
+    description: 'Catálogo de clases con imagen, horario y cupo',
+  },
   { path: 'membresias', label: 'Membresías', description: 'Planes de acceso y actividades incluidas' },
 ]
 
@@ -84,15 +107,26 @@ export const AGENDA_ACTIVIDADES_SECTION: NavSection = {
   description: 'Clases y eventos por periodo',
 }
 
+export const AGENDA_SECTIONS: NavSection[] = [
+  AGENDA_CITAS_SECTION,
+  AGENDA_ACTIVIDADES_SECTION,
+]
+
+/** Agenda filtrada por rol (citas: staff; actividades: dueño/recepción). */
 export function getAgendaSections(activeRole: string | null | undefined): NavSection[] {
   const sections: NavSection[] = []
-  if (activeRole != null && ['GYM_OWNER', 'RECEPTIONIST', 'INSTRUCTOR'].includes(activeRole)) {
+  if (canViewAgendaCitas(activeRole)) {
     sections.push(AGENDA_CITAS_SECTION)
   }
+  // Calendario de actividades: dueño y recepción (no instructor)
   if (activeRole != null && ['GYM_OWNER', 'RECEPTIONIST'].includes(activeRole)) {
     sections.push(AGENDA_ACTIVIDADES_SECTION)
   }
   return sections
+}
+
+export function agendaSectionsForRole(activeRole: string | null | undefined): NavSection[] {
+  return getAgendaSections(activeRole)
 }
 
 export function canViewAgenda(activeRole: string | null | undefined): boolean {
@@ -103,6 +137,19 @@ export const TRAINING_SECTIONS: NavSection[] = [
   { path: 'rutinas', label: 'Rutinas', description: 'Solicitudes y rutinas personalizadas' },
   { path: 'medidas', label: 'Medidas', description: 'Mediciones corporales y análisis', badge: 'Beta' },
   { path: 'nutricion', label: 'Nutrición', description: 'Planes alimenticios personalizados', badge: 'Beta' },
+]
+
+export const MERCADEO_SECTIONS: NavSection[] = [
+  {
+    path: 'actividades',
+    label: 'Promocionar actividades',
+    description: 'Carrusel del inicio: hasta 3 clases destacadas con imagen',
+  },
+  {
+    path: 'productos',
+    label: 'Descuentos',
+    description: 'Ofertas y descuentos con etiqueta % OFF en la tienda',
+  },
 ]
 
 export const DEFAULT_PASSWORD = '12345678'

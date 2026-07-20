@@ -21,6 +21,21 @@ public class Organization {
     private String contactEmail;
     private String contactPhone;
 
+    private String address;
+    private String city;
+    private String tagline;
+    private String businessHours;
+    private String websiteUrl;
+    private String socialHandle;
+
+    /** Preset de acento de marca: indigo, emerald, rose, amber, sky */
+    @Column(length = 16)
+    private String accentId = "indigo";
+
+    /** Decoración estacional de la web: NONE, CHRISTMAS, HALLOWEEN, etc. */
+    @Column(length = 32)
+    private String seasonTheme = "NONE";
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private SubscriptionStatus subscriptionStatus = SubscriptionStatus.INACTIVE;
@@ -44,6 +59,22 @@ public class Organization {
     public void setContactEmail(String contactEmail) { this.contactEmail = contactEmail; }
     public String getContactPhone() { return contactPhone; }
     public void setContactPhone(String contactPhone) { this.contactPhone = contactPhone; }
+    public String getAddress() { return address; }
+    public void setAddress(String address) { this.address = address; }
+    public String getCity() { return city; }
+    public void setCity(String city) { this.city = city; }
+    public String getTagline() { return tagline; }
+    public void setTagline(String tagline) { this.tagline = tagline; }
+    public String getBusinessHours() { return businessHours; }
+    public void setBusinessHours(String businessHours) { this.businessHours = businessHours; }
+    public String getWebsiteUrl() { return websiteUrl; }
+    public void setWebsiteUrl(String websiteUrl) { this.websiteUrl = websiteUrl; }
+    public String getSocialHandle() { return socialHandle; }
+    public void setSocialHandle(String socialHandle) { this.socialHandle = socialHandle; }
+    public String getAccentId() { return accentId; }
+    public void setAccentId(String accentId) { this.accentId = accentId; }
+    public String getSeasonTheme() { return seasonTheme; }
+    public void setSeasonTheme(String seasonTheme) { this.seasonTheme = seasonTheme; }
     public SubscriptionStatus getSubscriptionStatus() { return subscriptionStatus; }
     public void setSubscriptionStatus(SubscriptionStatus subscriptionStatus) { this.subscriptionStatus = subscriptionStatus; }
     public Instant getSubscriptionStart() { return subscriptionStart; }

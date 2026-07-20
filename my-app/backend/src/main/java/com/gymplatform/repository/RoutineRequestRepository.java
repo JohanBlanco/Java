@@ -16,6 +16,11 @@ public interface RoutineRequestRepository extends JpaRepository<RoutineRequest, 
     List<RoutineRequest> findByOrganizationIdAndPreferredInstructorIdOrderByCreatedAtDesc(
             Long organizationId, Long preferredInstructorId);
 
+    List<RoutineRequest> findByOrganizationIdAndAssignedInstructorIdOrderByCreatedAtDesc(
+            Long organizationId, Long assignedInstructorId);
+
+    boolean existsByMemberIdAndStatusIn(Long memberId, List<RoutineRequestStatus> statuses);
+
     @Modifying
     @Query("""
             DELETE FROM RoutineRequest r

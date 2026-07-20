@@ -1,10 +1,10 @@
-import type { CSSProperties } from 'react'
 import BroadcastMessagesSection from '../pages/configuracion/BroadcastMessagesSection'
 import CashSettingsSection from '../pages/configuracion/CashSettingsSection'
 import FormsHub from '../pages/configuracion/FormsHub'
 import ForumsSection from '../pages/configuracion/ForumsSection'
+import GymProfileSection from '../pages/configuracion/GymProfileSection'
+import PrivateAccessSection from '../pages/configuracion/PrivateAccessSection'
 import {
-  ACCENT_OPTIONS,
   LANGUAGE_OPTIONS,
   usePreferences,
   type SettingsSection,
@@ -14,29 +14,53 @@ type Props = {
   section: SettingsSection
 }
 
-const USER_SECTION_META: Record<'theme' | 'color' | 'language', 'settings.theme' | 'settings.color' | 'settings.language'> = {
-  theme: 'settings.theme',
-  color: 'settings.color',
-  language: 'settings.language',
-}
-
-const USER_DESCRIPTION_META: Record<'theme' | 'color' | 'language', 'settings.themeDescription' | 'settings.colorDescription' | 'settings.languageDescription'> = {
-  theme: 'settings.themeDescription',
-  color: 'settings.colorDescription',
-  language: 'settings.languageDescription',
-}
-
 export default function SettingsPanel({ section }: Props) {
-  const { theme, accent, language, setTheme, setAccent, setLanguage, t } = usePreferences()
+  const { theme, language, setTheme, setLanguage, t } = usePreferences()
 
-  if (section === 'broadcast-whatsapp') {
+  if (section === 'gym-profile') {
+    return (
+      <div className="settings-panel">
+        <div className="page-header">
+          <h1>{t('settings.gymProfile')}</h1>
+          <p>{t('settings.gymProfileDescription')}</p>
+        </div>
+        <GymProfileSection />
+      </div>
+    )
+  }
+
+  if (section === 'whatsapp-wame') {
     return (
       <div className="settings-panel">
         <div className="page-header">
           <h1>{t('settings.broadcastWhatsapp')}</h1>
           <p>{t('settings.broadcastWhatsappDescription')}</p>
         </div>
-        <BroadcastMessagesSection fixedChannel="WHATSAPP" />
+        <BroadcastMessagesSection fixedChannel="WHATSAPP" variant="wame" />
+      </div>
+    )
+  }
+
+  if (section === 'whatsapp-cloud') {
+    return (
+      <div className="settings-panel">
+        <div className="page-header">
+          <h1>{t('settings.whatsappCloud')}</h1>
+          <p>{t('settings.whatsappCloudDescription')}</p>
+        </div>
+        <BroadcastMessagesSection fixedChannel="WHATSAPP" variant="cloud" />
+      </div>
+    )
+  }
+
+  if (section === 'broadcast-messages') {
+    return (
+      <div className="settings-panel">
+        <div className="page-header">
+          <h1>{t('settings.broadcastMessages')}</h1>
+          <p>{t('settings.broadcastMessagesDescription')}</p>
+        </div>
+        <BroadcastMessagesSection fixedChannel="WHATSAPP" variant="templates" />
       </div>
     )
   }
@@ -77,8 +101,20 @@ export default function SettingsPanel({ section }: Props) {
     )
   }
 
-  const title = t(USER_SECTION_META[section])
-  const description = t(USER_DESCRIPTION_META[section])
+  if (section === 'private-access') {
+    return (
+      <div className="settings-panel">
+        <div className="page-header">
+          <h1>{t('settings.privateAccess')}</h1>
+          <p>{t('settings.privateAccessDescription')}</p>
+        </div>
+        <PrivateAccessSection />
+      </div>
+    )
+  }
+
+  const title = section === 'theme' ? t('settings.theme') : t('settings.language')
+  const description = section === 'theme' ? t('settings.themeDescription') : t('settings.languageDescription')
 
   return (
     <div className="settings-panel">
@@ -111,27 +147,6 @@ export default function SettingsPanel({ section }: Props) {
             <span className="settings-panel-option-label">{t('settings.themeLight')}</span>
             {theme === 'light' && <span className="settings-panel-option-check">✓</span>}
           </button>
-        </div>
-      )}
-
-      {section === 'color' && (
-        <div className="settings-panel-options settings-panel-options--accents" role="radiogroup" aria-label={title}>
-          {ACCENT_OPTIONS.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              role="radio"
-              aria-checked={accent === option.id}
-              aria-label={option.label[language]}
-              className={`settings-panel-option settings-panel-option--accent${accent === option.id ? ' active' : ''}`}
-              style={{ '--swatch-color': option.swatch } as CSSProperties}
-              onClick={() => setAccent(option.id)}
-            >
-              <span className="settings-panel-accent-swatch" aria-hidden="true" />
-              <span className="settings-panel-option-label">{option.label[language]}</span>
-              {accent === option.id && <span className="settings-panel-option-check">✓</span>}
-            </button>
-          ))}
         </div>
       )}
 

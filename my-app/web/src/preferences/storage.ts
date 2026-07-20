@@ -61,7 +61,17 @@ export function savePreferences(preferences: UserPreferences) {
 export function applyPreferences(preferences: UserPreferences) {
   const root = document.documentElement
   root.setAttribute('data-theme', preferences.theme)
-  root.setAttribute('data-accent', preferences.accent)
   root.style.colorScheme = preferences.theme
   root.lang = preferences.language
+  // El acento lo controla el branding de la organización (applyOrgBrand).
+}
+
+export function applyOrgBrand(accent: AccentId, seasonTheme?: string | null) {
+  document.documentElement.setAttribute('data-accent', accent)
+  const season = seasonTheme && seasonTheme !== 'NONE' ? seasonTheme : ''
+  if (season) {
+    document.documentElement.setAttribute('data-season', season)
+  } else {
+    document.documentElement.removeAttribute('data-season')
+  }
 }

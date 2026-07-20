@@ -58,15 +58,34 @@ export function formatRoles(roles: string[]): string {
 }
 
 export function canViewReception(activeRole: string | null | undefined): boolean {
-  return activeRole != null && ['GYM_OWNER', 'RECEPTIONIST'].includes(activeRole)
-}
-
-export function canViewTrainingAdmin(activeRole: string | null | undefined): boolean {
+  /** Administración: usuarios, productos, membresías, expedientes */
   return activeRole != null && ['GYM_OWNER', 'RECEPTIONIST', 'INSTRUCTOR'].includes(activeRole)
 }
 
-export const canViewVentas = canViewReception
-export const canViewEstadisticas = canViewReception
+export function canViewTrainingAdmin(activeRole: string | null | undefined): boolean {
+  /** Plan de entrenamiento: rutinas, medidas, nutrición */
+  return activeRole != null && ['GYM_OWNER', 'INSTRUCTOR'].includes(activeRole)
+}
+
+export function canViewVentas(activeRole: string | null | undefined): boolean {
+  return activeRole != null && ['GYM_OWNER', 'RECEPTIONIST', 'INSTRUCTOR'].includes(activeRole)
+}
+
+export function canViewEstadisticas(activeRole: string | null | undefined): boolean {
+  return activeRole === 'GYM_OWNER'
+}
+
+export function canViewAgendaCitas(activeRole: string | null | undefined): boolean {
+  return activeRole != null && ['GYM_OWNER', 'RECEPTIONIST', 'INSTRUCTOR'].includes(activeRole)
+}
+
+export function canViewAgendaActividades(activeRole: string | null | undefined): boolean {
+  return activeRole != null && ['GYM_OWNER', 'RECEPTIONIST', 'INSTRUCTOR'].includes(activeRole)
+}
+
+export function canViewAgenda(activeRole: string | null | undefined): boolean {
+  return canViewAgendaCitas(activeRole) || canViewAgendaActividades(activeRole)
+}
 
 export function canViewProfile(activeRole: string | null | undefined): boolean {
   return activeRole != null && ['INSTRUCTOR', 'MEMBER', 'RECEPTIONIST'].includes(activeRole)
@@ -74,6 +93,11 @@ export function canViewProfile(activeRole: string | null | undefined): boolean {
 
 export function canViewAdmin(activeRole: string | null | undefined): boolean {
   return activeRole === 'GYM_OWNER'
+}
+
+/** Mercadeo: admin y recepción */
+export function canViewMercadeo(activeRole: string | null | undefined): boolean {
+  return activeRole != null && ['GYM_OWNER', 'RECEPTIONIST'].includes(activeRole)
 }
 
 export function isMemberView(activeRole: string | null | undefined): boolean {

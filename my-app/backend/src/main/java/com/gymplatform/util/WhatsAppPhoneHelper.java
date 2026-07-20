@@ -35,4 +35,13 @@ public final class WhatsAppPhoneHelper {
         }
         return digits;
     }
+
+    /** Solo dígitos (E.164 sin +), para Cloud API {@code to}. */
+    public static String toDigitsOnly(String phone) {
+        if (phone == null || phone.isBlank()) {
+            return null;
+        }
+        String digits = phone.replaceAll("\\D", "");
+        return digits.isEmpty() ? null : digits;
+    }
 }

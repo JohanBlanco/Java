@@ -1,3 +1,5 @@
+import { formatTimeRangeLabel } from '../utils/dateFormat'
+
 type Props = {
   startTime: string
   endTime: string
@@ -20,7 +22,7 @@ export default function AvailabilitySlotActionModal({
       <div className="modal card availability-slot-action-modal" onClick={(e) => e.stopPropagation()}>
         <h2>Espacio disponible</h2>
         <p className="text-muted availability-slot-action-time">
-          {startTime} – {endTime}
+          {formatTimeRangeLabel(startTime, endTime)}
         </p>
         <p className="availability-slot-action-prompt">¿Qué deseas hacer con este horario?</p>
         <div className="availability-slot-action-options">

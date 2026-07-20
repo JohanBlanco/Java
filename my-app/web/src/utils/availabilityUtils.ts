@@ -2,6 +2,7 @@ import type { AppointmentRequest, StaffAvailability } from '../types'
 import { localMinutesFromIso } from './appointmentCalendarUtils'
 import { appointmentFitsAvailabilityBlock } from './availabilitySlotDragUtils'
 import { addDays, parseDate, toIsoDate } from './calendarUtils'
+import { formatTime } from './dateFormat'
 
 export function parseTimeToMinutes(time: string): number {
   const parts = time.split(':')
@@ -17,12 +18,7 @@ export function minutesToTimeLabel(totalMinutes: number): string {
 }
 
 export function formatTimeShort(time: string): string {
-  const minutes = parseTimeToMinutes(time.slice(0, 5))
-  const h24 = Math.floor(minutes / 60)
-  const m = minutes % 60
-  const suffix = h24 >= 12 ? 'pm' : 'am'
-  const h12 = h24 % 12 || 12
-  return m === 0 ? `${h12}${suffix}` : `${h12}:${String(m).padStart(2, '0')}${suffix}`
+  return formatTime(time.slice(0, 5), 'es')
 }
 
 export function countAvailabilitySlots(startTime: string, endTime: string, durationMinutes: number): number {

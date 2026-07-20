@@ -2,6 +2,7 @@ import type { AppointmentRequest, StaffAvailability } from '../types'
 import type { CalendarView } from './calendarUtils'
 import { isBookedAppointment } from './appointmentUtils'
 import { addDays, getRangeForView, isSameDay, parseDate, toIsoDate } from './calendarUtils'
+import { formatTimeRangeLabel } from './dateFormat'
 
 export const TIMELINE_START_HOUR = 0
 export const TIMELINE_END_HOUR = 24
@@ -28,12 +29,7 @@ export function parseDateTime(iso: string | null | undefined): Date | null {
 }
 
 export function formatTimeRange(start: string | null, end: string | null): string {
-  const s = parseDateTime(start)
-  const e = parseDateTime(end)
-  if (!s || !e) return 'Sin horario'
-  const fmt = (d: Date) =>
-    d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
-  return `${fmt(s)} – ${fmt(e)}`
+  return formatTimeRangeLabel(start, end, 'es')
 }
 
 export function appointmentsForDay(appointments: AppointmentRequest[], day: Date): AppointmentRequest[] {

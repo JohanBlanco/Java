@@ -23,5 +23,8 @@ public record StoreSaleResponse(
         /** Monto en efectivo que afecta caja (0 si solo tarjeta/SINPE). */
         BigDecimal cashAmount,
         List<StoreSalePaymentResponse> payments,
-        List<StoreSaleItemResponse> items
+        List<StoreSaleItemResponse> items,
+        boolean voided,
+        /** Se puede eliminar mientras la caja del movimiento siga abierta. */
+        boolean deletable
 ) {}

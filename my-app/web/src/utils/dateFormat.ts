@@ -3,15 +3,66 @@ import type { CalendarView } from './calendarUtils'
 import { addDays, parseDate, startOfWeek } from './calendarUtils'
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+const CLOCK = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/
 
 export function getDateLocale(language: Language): string {
-  return language === 'es' ? 'es-MX' : 'en-US'
+  return language === 'es' ? 'es-CR' : 'en-US'
 }
 
 function toDate(value: Date | string): Date {
   if (value instanceof Date) return value
   if (ISO_DATE.test(value)) return parseDate(value)
   return new Date(value)
+}
+
+/** Acepta Date, ISO datetime o reloj `HH:mm` / `HH:mm:ss`. */
+export function parseClockOrDateTime(value: Date | string): Date | null {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value
+  }
+  const raw = value.trim()
+  if (!raw) return null
+  const clock = CLOCK.exec(raw)
+  if (clock) {
+    const d = new Date(
+      2000,
+      0,
+      1,
+      Number(clock[1]),
+      Number(clock[2]),
+      Number(clock[3] ?? 0),
+    )
+    return Number.isNaN(d.getTime()) ? null : d
+  }
+  if (ISO_DATE.test(raw)) {
+    return parseDate(raw)
+  }
+  const d = new Date(raw)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+const TIME_OPTS: Intl.DateTimeFormatOptions = {
+  hour: 'numeric',
+  minute: '2-digit',
+  hour12: true,
+}
+
+/** Hora en formato 12 h (ej. 9:30 a. m.). */
+export function formatTime(value: Date | string, language: Language = 'es'): string {
+  const d = parseClockOrDateTime(value)
+  if (!d) return String(value)
+  return d.toLocaleTimeString(getDateLocale(language), TIME_OPTS)
+}
+
+/** Rango de horas 12 h (ej. 9:00 a. m. – 10:00 a. m.). */
+export function formatTimeRangeLabel(
+  start: Date | string | null | undefined,
+  end: Date | string | null | undefined,
+  language: Language = 'es',
+  emptyLabel = 'Sin horario',
+): string {
+  if (start == null || end == null || start === '' || end === '') return emptyLabel
+  return `${formatTime(start, language)} – ${formatTime(end, language)}`
 }
 
 /** Fecha corta: dd/mm/yyyy (es) o mm/dd/yyyy (en). */
@@ -33,8 +84,7 @@ export function formatDateTime(value: Date | string, language: Language): string
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
+    ...TIME_OPTS,
   })
 }
 
@@ -83,7 +133,7 @@ export function dateSearchTerms(value: Date | string): string[] {
     date.toISOString(),
     formatDate(date, 'es'),
     formatDate(date, 'en'),
-    date.toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }),
+    date.toLocaleDateString('es-CR', { day: 'numeric', month: 'short', year: 'numeric' }),
     date.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }),
   ]
   if (iso) {

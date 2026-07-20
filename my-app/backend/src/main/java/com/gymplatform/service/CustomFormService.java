@@ -17,9 +17,12 @@ import com.gymplatform.exception.BusinessException;
 import com.gymplatform.exception.ResourceNotFoundException;
 import com.gymplatform.repository.CustomFormRepository;
 import com.gymplatform.repository.CustomFormSubmissionRepository;
+import com.gymplatform.repository.MembershipPackageRepository;
 import com.gymplatform.repository.OrganizationRepository;
 import com.gymplatform.repository.UserRepository;
+import com.gymplatform.util.MemberOnboardingFormFactory;
 import com.gymplatform.util.MemberRegistrationFormFactory;
+import com.gymplatform.util.MemberSignupFormFactory;
 import com.gymplatform.util.SecurityUtils;
 import com.gymplatform.util.SlugHelper;
 import org.springframework.beans.factory.annotation.Value;
@@ -40,10 +43,13 @@ public class CustomFormService {
     private final CustomFormSubmissionRepository submissionRepository;
     private final OrganizationRepository organizationRepository;
     private final UserRepository userRepository;
+    private final MembershipPackageRepository packageRepository;
     private final ObjectMapper objectMapper;
     private final FormFolderService folderService;
     private final BroadcastSettingsService broadcastSettingsService;
     private final MemberFileService memberFileService;
+    private final WhatsAppCloudApiService whatsAppCloudApiService;
+    private final PublicMemberSignupService publicMemberSignupService;
 
     @Value("${app.public-base-url:http://localhost:5173}")
     private String publicBaseUrl;
@@ -53,18 +59,31 @@ public class CustomFormService {
             CustomFormSubmissionRepository submissionRepository,
             OrganizationRepository organizationRepository,
             UserRepository userRepository,
+            MembershipPackageRepository packageRepository,
             ObjectMapper objectMapper,
             FormFolderService folderService,
             BroadcastSettingsService broadcastSettingsService,
-            MemberFileService memberFileService) {
+            MemberFileService memberFileService,
+            WhatsAppCloudApiService whatsAppCloudApiService,
+            PublicMemberSignupService publicMemberSignupService) {
         this.formRepository = formRepository;
         this.submissionRepository = submissionRepository;
         this.organizationRepository = organizationRepository;
         this.userRepository = userRepository;
+        this.packageRepository = packageRepository;
         this.objectMapper = objectMapper;
         this.folderService = folderService;
         this.broadcastSettingsService = broadcastSettingsService;
         this.memberFileService = memberFileService;
+        this.whatsAppCloudApiService = whatsAppCloudApiService;
+        this.publicMemberSignupService = publicMemberSignupService;
+    }
+
+    @Transactional
+    public void ensureSystemForms(Long organizationId) {
+        ensureMemberRegistrationForm(organizationId);
+        ensureMemberSignupForm(organizationId);
+        ensureMemberOnboardingForm(organizationId);
     }
 
     @Transactional
@@ -72,6 +91,30 @@ public class CustomFormService {
         return formRepository.findByOrganizationIdAndFormPurpose(organizationId, FormPurpose.MEMBER_REGISTRATION)
                 .map(this::upgradeRegistrationFormIfNeeded)
                 .orElseGet(() -> createMemberRegistrationForm(organizationId));
+    }
+
+    @Transactional
+    public CustomForm ensureMemberSignupForm(Long organizationId) {
+        return formRepository.findByOrganizationIdAndFormPurpose(organizationId, FormPurpose.MEMBER_SIGNUP)
+                .orElseGet(() -> createSystemForm(
+                        organizationId,
+                        FormPurpose.MEMBER_SIGNUP,
+                        MemberSignupFormFactory.TITLE,
+                        MemberSignupFormFactory.SLUG,
+                        MemberSignupFormFactory.DESCRIPTION,
+                        MemberSignupFormFactory.defaultFields()));
+    }
+
+    @Transactional
+    public CustomForm ensureMemberOnboardingForm(Long organizationId) {
+        return formRepository.findByOrganizationIdAndFormPurpose(organizationId, FormPurpose.MEMBER_ONBOARDING)
+                .orElseGet(() -> createSystemForm(
+                        organizationId,
+                        FormPurpose.MEMBER_ONBOARDING,
+                        MemberOnboardingFormFactory.TITLE,
+                        MemberOnboardingFormFactory.SLUG,
+                        MemberOnboardingFormFactory.DESCRIPTION,
+                        MemberOnboardingFormFactory.defaultFields()));
     }
 
     private CustomForm upgradeRegistrationFormIfNeeded(CustomForm form) {
@@ -88,51 +131,95 @@ public class CustomFormService {
     }
 
     public Optional<String> buildRegistrationFormWhatsappUrl(Long organizationId, User user) {
+        return dispatchRegistrationForm(organizationId, user)
+                .map(WhatsappOutboundResponse::whatsappUrl);
+    }
+
+    public Optional<WhatsappOutboundResponse> dispatchRegistrationForm(Long organizationId, User user) {
+        String message = composeRegistrationFormMessage(organizationId, user);
+
+        if (broadcastSettingsService.isCloudApiDelivery(organizationId)) {
+            String messageId = whatsAppCloudApiService.sendText(
+                    organizationId, user.getWhatsappPhone(), message, true);
+            return Optional.of(new WhatsappOutboundResponse(null, message, "CLOUD_API", messageId));
+        }
+
         CustomForm form = ensureMemberRegistrationForm(organizationId);
         Organization org = form.getOrganization();
         String url = buildPublicUrl(org.getSlug(), form.getSlug(), user.getId());
         return broadcastSettingsService.buildRegistrationFormWhatsappUrl(
-                organizationId,
-                user.getWhatsappPhone(),
+                        organizationId,
+                        user.getWhatsappPhone(),
+                        user.getFirstName(),
+                        form.getTitle(),
+                        url)
+                .map(waUrl -> new WhatsappOutboundResponse(waUrl, message, "WA_ME", null));
+    }
+
+    /** Texto del mensaje de formulario de registro (sin enviar). */
+    public String composeRegistrationFormMessage(Long organizationId, User user) {
+        CustomForm form = ensureMemberRegistrationForm(organizationId);
+        Organization org = form.getOrganization();
+        String url = buildPublicUrl(org.getSlug(), form.getSlug(), user.getId());
+        return broadcastSettingsService.previewRegistrationFormMessage(
                 user.getFirstName(),
+                form.getTitle(),
+                url);
+    }
+
+    /**
+     * Formulario público (sin {@code ?m=}) para prospectos / pre-inscripción por WhatsApp.
+     */
+    public String composeGuestRegistrationFormMessage(Long organizationId, String firstName) {
+        CustomForm form = ensureMemberRegistrationForm(organizationId);
+        Organization org = form.getOrganization();
+        String url = buildPublicUrl(org.getSlug(), form.getSlug());
+        String name = (firstName != null && !firstName.isBlank()) ? firstName.trim() : "hola";
+        return broadcastSettingsService.previewRegistrationFormMessage(
+                name,
                 form.getTitle(),
                 url);
     }
 
     public WhatsappOutboundResponse resendRegistrationFormViaWhatsApp(Long organizationId, User user) {
-        CustomForm form = ensureMemberRegistrationForm(organizationId);
-        Organization org = form.getOrganization();
-        String url = buildPublicUrl(org.getSlug(), form.getSlug(), user.getId());
-        String message = broadcastSettingsService.previewRegistrationFormMessage(
-                user.getFirstName(),
-                form.getTitle(),
-                url);
-        String whatsappUrl = broadcastSettingsService.requireRegistrationFormWhatsappUrl(
-                organizationId,
-                user.getWhatsappPhone(),
-                user.getFirstName(),
-                form.getTitle(),
-                url);
-        return new WhatsappOutboundResponse(whatsappUrl, message);
+        return dispatchRegistrationForm(organizationId, user)
+                .orElseThrow(() -> new BusinessException(
+                        "Activa WhatsApp en Configuración → Mensajes de difusión para enviar el formulario de registro"));
     }
 
     public void sendRegistrationFormViaWhatsApp(Long organizationId, User user) {
-        buildRegistrationFormWhatsappUrl(organizationId, user);
+        dispatchRegistrationForm(organizationId, user);
     }
 
     private CustomForm createMemberRegistrationForm(Long organizationId) {
+        return createSystemForm(
+                organizationId,
+                FormPurpose.MEMBER_REGISTRATION,
+                MemberRegistrationFormFactory.TITLE,
+                MemberRegistrationFormFactory.SLUG,
+                MemberRegistrationFormFactory.DESCRIPTION,
+                MemberRegistrationFormFactory.defaultFields());
+    }
+
+    private CustomForm createSystemForm(
+            Long organizationId,
+            FormPurpose purpose,
+            String title,
+            String slug,
+            String description,
+            List<FormFieldDto> fields) {
         Organization org = organizationRepository.findById(organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Organización no encontrada"));
 
         CustomForm form = new CustomForm();
         form.setOrganization(org);
-        form.setTitle(MemberRegistrationFormFactory.TITLE);
-        form.setSlug(MemberRegistrationFormFactory.SLUG);
-        form.setDescription(MemberRegistrationFormFactory.DESCRIPTION);
+        form.setTitle(title);
+        form.setSlug(slug);
+        form.setDescription(description);
         form.setAccessType(FormAccessType.PUBLIC);
-        form.setFormPurpose(FormPurpose.MEMBER_REGISTRATION);
+        form.setFormPurpose(purpose);
         form.setActive(true);
-        form.setFieldsJson(writeFields(MemberRegistrationFormFactory.defaultFields()));
+        form.setFieldsJson(writeFields(fields));
         form = formRepository.save(form);
 
         FormFolder responseFolder = folderService.createAutoResponseFolder(form);
@@ -142,7 +229,7 @@ public class CustomFormService {
 
     public List<CustomFormResponse> listForms(Long organizationId, Long templateFolderId) {
         requireConfigRole();
-        ensureMemberRegistrationForm(organizationId);
+        ensureSystemForms(organizationId);
         List<CustomForm> forms = templateFolderId == null
                 ? formRepository.findByOrganizationIdOrderByTitleAsc(organizationId)
                 : templateFolderId == -1L
@@ -190,8 +277,8 @@ public class CustomFormService {
     public CustomFormResponse updateForm(Long organizationId, Long formId, CustomFormRequest request) {
         requireConfigRole();
         CustomForm form = requireForm(organizationId, formId);
-        String slug = form.getFormPurpose() == FormPurpose.MEMBER_REGISTRATION
-                ? MemberRegistrationFormFactory.SLUG
+        String slug = form.getFormPurpose().isSystemProtected()
+                ? form.getSlug()
                 : resolveSlug(organizationId, request.slug(), request.title(), form.getId());
         List<FormFieldDto> fields = normalizeFields(request.fields());
 
@@ -222,8 +309,8 @@ public class CustomFormService {
     public void deleteForm(Long organizationId, Long formId) {
         requireConfigRole();
         CustomForm form = requireForm(organizationId, formId);
-        if (form.getFormPurpose() == FormPurpose.MEMBER_REGISTRATION) {
-            throw new BusinessException("El formulario de registro del miembro no se puede eliminar");
+        if (form.getFormPurpose().isSystemProtected()) {
+            throw new BusinessException("Los formularios del sistema no se pueden eliminar");
         }
         formRepository.delete(form);
     }
@@ -243,11 +330,15 @@ public class CustomFormService {
 
         boolean requiresAuth = form.getAccessType() == FormAccessType.AUTHENTICATED;
         List<FormFieldDto> fields = List.of();
+        List<PublicMembershipOption> packages = List.of();
         if (!requiresAuth || authenticated) {
             if (requiresAuth) {
                 validateSameOrganization(org.getId());
             }
-            fields = readFields(form.getFieldsJson());
+            fields = preparePublicFields(form);
+            if (form.getFormPurpose().createsUserOnSubmit()) {
+                packages = listPublicMembershipOptions(org.getId());
+            }
         }
 
         return new PublicFormResponse(
@@ -256,10 +347,13 @@ public class CustomFormService {
                 form.getSlug(),
                 form.getDescription(),
                 form.getAccessType(),
+                form.getFormPurpose(),
+                form.getFormPurpose().createsUserOnSubmit(),
                 requiresAuth && !authenticated,
                 org.getName(),
                 org.getSlug(),
-                fields
+                fields,
+                packages
         );
     }
 
@@ -273,8 +367,13 @@ public class CustomFormService {
         if (form.getAccessType() != FormAccessType.PUBLIC) {
             throw new BusinessException("Este formulario requiere iniciar sesión");
         }
+
+        if (form.getFormPurpose().createsUserOnSubmit()) {
+            return submitSignupForm(form, request.answers());
+        }
+
         User linkedMember = memberFileService.resolveLinkedMember(form.getOrganization().getId(), request.memberUserId());
-        return saveSubmission(form, linkedMember, request.answers());
+        return saveSubmission(form, linkedMember, request.answers(), false, null, null);
     }
 
     @Transactional
@@ -285,7 +384,7 @@ public class CustomFormService {
         }
         User user = userRepository.findById(SecurityUtils.currentUser().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
-        return saveSubmission(form, user, request.answers());
+        return saveSubmission(form, user, request.answers(), false, null, null);
     }
 
     public String resolveFormLink(Long organizationId, String formSlug) {
@@ -320,6 +419,103 @@ public class CustomFormService {
         );
     }
 
+    private FormSubmissionResponse submitSignupForm(CustomForm form, Map<String, Object> answers) {
+        List<PublicMembershipOption> packages = listPublicMembershipOptions(form.getOrganization().getId());
+        if (packages.isEmpty()) {
+            throw new BusinessException(
+                    "No hay planes de membresía activos. Configura al menos un plan antes de usar este formulario.");
+        }
+        List<FormFieldDto> fields = preparePublicFields(form);
+        Map<String, Object> normalizedAnswers = validateAnswers(fields, answers);
+        User created = publicMemberSignupService.createMemberFromAnswers(
+                form.getOrganization().getId(), normalizedAnswers);
+
+        // Completar nombre del expediente si el formulario combinado lo omite
+        if (!normalizedAnswers.containsKey("f-nombre") || isBlank(normalizedAnswers.get("f-nombre"))) {
+            normalizedAnswers.put("f-nombre", created.getFirstName() + " " + created.getLastName());
+        }
+
+        Map<String, Object> storedAnswers = new LinkedHashMap<>(normalizedAnswers);
+        storedAnswers.remove(MemberSignupFormFactory.FIELD_PASSWORD);
+
+        String message = form.getFormPurpose() == FormPurpose.MEMBER_ONBOARDING
+                ? "Cuenta creada y registro guardado. Ya puedes iniciar sesión."
+                : "Cuenta creada correctamente. Ya puedes iniciar sesión.";
+
+        return saveSubmission(form, created, storedAnswers, true, created.getId(), message);
+    }
+
+    private List<FormFieldDto> preparePublicFields(CustomForm form) {
+        List<FormFieldDto> fields = new ArrayList<>(readFields(form.getFieldsJson()));
+        if (!form.getFormPurpose().createsUserOnSubmit()) {
+            return fields;
+        }
+        List<String> packageOptions = listPublicMembershipOptions(form.getOrganization().getId()).stream()
+                .map(opt -> opt.id() + ":" + opt.name())
+                .toList();
+        List<FormFieldDto> enriched = new ArrayList<>();
+        for (FormFieldDto field : fields) {
+            if (MemberSignupFormFactory.FIELD_MEMBERSHIP.equals(field.id())) {
+                enriched.add(new FormFieldDto(
+                        field.id(),
+                        field.type(),
+                        field.label(),
+                        field.placeholder(),
+                        field.helpText(),
+                        field.required(),
+                        packageOptions,
+                        field.visibilityFieldId(),
+                        field.visibilityValue()
+                ));
+            } else {
+                enriched.add(field);
+            }
+        }
+        return enriched;
+    }
+
+    private List<PublicMembershipOption> listPublicMembershipOptions(Long organizationId) {
+        return packageRepository.findByOrganizationIdAndActiveTrue(organizationId).stream()
+                .map(pkg -> new PublicMembershipOption(pkg.getId(), pkg.getName()))
+                .toList();
+    }
+
+    private static boolean isBlank(Object value) {
+        return value == null || String.valueOf(value).trim().isEmpty();
+    }
+
+    private FormSubmissionResponse saveSubmission(
+            CustomForm form,
+            User user,
+            Map<String, Object> answers,
+            boolean userCreated,
+            Long createdUserId,
+            String message) {
+        List<FormFieldDto> fields = form.getFormPurpose().createsUserOnSubmit()
+                ? preparePublicFields(form)
+                : readFields(form.getFieldsJson());
+        Map<String, Object> normalizedAnswers = userCreated
+                ? answers
+                : validateAnswers(fields, answers);
+
+        CustomFormSubmission submission = new CustomFormSubmission();
+        submission.setForm(form);
+        submission.setSubmittedBy(user);
+        submission.setResponseFolder(ensureResponseFolder(form));
+        submission.setAnswersJson(writeAnswers(normalizedAnswers));
+        if (userCreated) {
+            submission.setImportedAt(Instant.now());
+        }
+        submission = submissionRepository.save(submission);
+        return new FormSubmissionResponse(
+                submission.getId(),
+                submission.getCreatedAt(),
+                userCreated,
+                createdUserId,
+                message
+        );
+    }
+
     private FormFolder resolveResponseFolder(
             Long organizationId,
             CustomForm form,
@@ -345,19 +541,6 @@ public class CustomFormService {
         form.setResponseFolder(folder);
         formRepository.save(form);
         return folder;
-    }
-
-    private FormSubmissionResponse saveSubmission(CustomForm form, User user, Map<String, Object> answers) {
-        List<FormFieldDto> fields = readFields(form.getFieldsJson());
-        Map<String, Object> normalizedAnswers = validateAnswers(fields, answers);
-
-        CustomFormSubmission submission = new CustomFormSubmission();
-        submission.setForm(form);
-        submission.setSubmittedBy(user);
-        submission.setResponseFolder(ensureResponseFolder(form));
-        submission.setAnswersJson(writeAnswers(normalizedAnswers));
-        submission = submissionRepository.save(submission);
-        return new FormSubmissionResponse(submission.getId(), submission.getCreatedAt());
     }
 
     private Map<String, Object> validateAnswers(List<FormFieldDto> fields, Map<String, Object> answers) {
@@ -488,7 +671,7 @@ public class CustomFormService {
                 form.getDescription(),
                 form.getAccessType(),
                 form.getFormPurpose(),
-                form.getFormPurpose() == FormPurpose.MEMBER_REGISTRATION,
+                form.getFormPurpose().isSystemProtected(),
                 form.isActive(),
                 readFields(form.getFieldsJson()),
                 buildPublicUrl(org.getSlug(), form.getSlug()),

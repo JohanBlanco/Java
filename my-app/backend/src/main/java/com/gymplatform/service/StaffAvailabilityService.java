@@ -641,6 +641,25 @@ public class StaffAvailabilityService {
         return getAvailableSlots(organizationId, date, null);
     }
 
+    /**
+     * Adquiere candados del día (bloques de disponibilidad o, si no hay, el gym)
+     * antes de validar/ocupar un horario. Evita n+1 reservas concurrentes sobre n cupos.
+     */
+    @Transactional
+    public void lockBookingWindow(Long organizationId, Instant start, Instant end) {
+        if (start == null) {
+            organizationRepository.findByIdForUpdate(organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Gimnasio no encontrado"));
+            return;
+        }
+        LocalDate date = LocalDate.ofInstant(start, ZONE);
+        List<StaffAvailability> dayBlocks = availabilityRepository.findDayBlocksForUpdate(organizationId, date);
+        if (dayBlocks.isEmpty()) {
+            organizationRepository.findByIdForUpdate(organizationId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Gimnasio no encontrado"));
+        }
+    }
+
     public List<AvailableSlotResponse> getAvailableSlots(Long organizationId, LocalDate date,
                                                          Long excludeAppointmentId) {
         Instant dayStart = date.atStartOfDay(ZONE).toInstant();

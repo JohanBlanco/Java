@@ -51,6 +51,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/auth/me").authenticated()
                 .requestMatchers("/api/auth/**", "/h2-console/**", "/api/public/**").permitAll()
                 .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/platform/**").hasRole("PLATFORM_OWNER")
                 .anyRequest().authenticated()

@@ -9,6 +9,7 @@ import java.util.List;
 public record ActivityRequest(
         @NotBlank String name,
         String description,
+        String imageUrl,
         @NotNull LocalDate startDate,
         @NotNull LocalDate endDate,
         @NotNull LocalTime startTime,

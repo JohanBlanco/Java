@@ -16,6 +16,79 @@ Bitácora de cambios. Actualizar en cada sesión de trabajo.
 
 ---
 
+## 2026-07-19 — Seed de ventas para estadísticas
+
+### Qué se hizo
+- Nuevo `db/demo-seed-sales.sql`: cajas, ventas, ítems y pagos (mes actual + anterior).
+- `DemoSqlSeeder` carga ventas si FitLife no tiene `store_sales`; asegura contraseña de áreas privadas (`12345678`) e indigo.
+
+### Cómo probarlo
+1. Reiniciar backend (si ya había gym sin ventas, arranca y carga solo el script de ventas).
+2. Login dueño → Estadísticas → desbloquear con `12345678`.
+3. Ver KPIs, series, categorías, top productos y métodos de pago.
+
+---
+
+### Qué se hizo
+- Fuente de verdad de datos demo: `backend/src/main/resources/db/demo-seed.sql`.
+- `DemoSqlSeeder` carga el SQL al arrancar si no existe el gym `fitlife`.
+- El antiguo `DataSeeder` Java quedó desactivado.
+
+### Cómo probarlo
+1. Detener backend, borrar `backend/data/gymdb*.db`, arrancar de nuevo.
+2. Login `dueno@fitlife.com` / `12345678` — miembros, actividades, productos, mercadeo.
+3. Para agregar data demo: editar `demo-seed.sql` y regenerar la DB.
+
+---
+
+## 2026-07-19 — Catálogo de actividades en Administración
+
+### Qué se hizo
+- Nueva sección **Administración → Actividades** (grid con imagen, similar a Productos).
+- Las actividades tienen `imageUrl` (subida 1600×900).
+- Seed demo asigna imágenes a Boxeo, Zumba, Funcional, Spinning, Yoga, HIIT, Pilates, etc.
+
+### Cómo probarlo
+1. Login dueño → Administración → Actividades.
+2. Ver tarjetas con imagen; editar o crear una nueva con foto.
+3. Reiniciar backend si las imágenes demo no aparecen aún.
+
+---
+
+## 2026-07-19 — Sección Mercadeo (actividades, ofertas, decoración)
+
+### Qué se hizo
+- Nuevo menú **Mercadeo** (Admin + Recepción): Promocionar actividades, Promocionar productos, Decoración del mes.
+- Promociones de actividades: subir imagen propia (además de URL / sugerencias).
+- Ofertas de productos con etiqueta tipo `30% OFF`, vigencia opcional y precio rebajado en el POS.
+- Temas estacionales (Navidad, Halloween, San Valentín, etc.) que decoran toda la web.
+- La gestión de promociones salió de Inicio / Agenda y vive solo en Mercadeo.
+
+### Cómo probarlo
+1. Login como `dueno@fitlife.com` / `12345678` → menú **Mercadeo**.
+2. En Actividades: subir una imagen a un espacio del carrusel.
+3. En Productos: crear oferta 30% OFF y verificar etiqueta en Punto de venta.
+4. En Decoración: aplicar Navidad o Halloween y ver el borde/ambiente en la app.
+5. Perfil Miembro: verificar carrusel de actividades promocionadas.
+
+---
+
+## 2026-07-19 — Promociones y retención de actividades
+
+### Qué se hizo
+- Las actividades y citas terminadas se conservan un mes y luego se eliminan automáticamente.
+- El dueño puede configurar hasta tres actividades promocionadas desde Agenda → Actividades.
+- Cada promoción admite imagen por URL o sugerencias visuales.
+- El inicio del miembro muestra un carrusel; sin promociones manuales usa las tres actividades más reservadas.
+
+### Cómo probarlo
+1. Entrar como dueño y abrir Agenda → Actividades.
+2. Configurar uno de los tres espacios promocionales.
+3. Entrar con perfil Miembro y verificar el carrusel antes de “Actividades disponibles”.
+4. Vaciar los tres espacios y comprobar el fallback automático.
+
+---
+
 ## 2026-07-10 — Contraseña por defecto y dueño al crear gimnasio
 
 ### Qué se hizo

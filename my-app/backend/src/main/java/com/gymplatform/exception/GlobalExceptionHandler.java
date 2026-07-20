@@ -30,6 +30,21 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleDataIntegrity(
+            org.springframework.dao.DataIntegrityViolationException ex) {
+        String raw = ex.getMostSpecificCause() != null
+                ? ex.getMostSpecificCause().getMessage()
+                : ex.getMessage();
+        String lower = raw != null ? raw.toLowerCase() : "";
+        if (lower.contains("uk_reservations_activity_member_occurrence")
+                || (lower.contains("activity_id") && lower.contains("member_id"))) {
+            return buildResponse(HttpStatus.BAD_REQUEST, "Ya tienes una reservación activa para esta clase");
+        }
+        log.warn("Violación de integridad: {}", raw);
+        return buildResponse(HttpStatus.CONFLICT, "No se pudo completar la operación por un conflicto de datos");
+    }
+
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<Map<String, Object>> handleBadCredentials(BadCredentialsException ex) {
         return buildResponse(HttpStatus.UNAUTHORIZED, "Credenciales inválidas");
@@ -79,6 +94,8 @@ public class GlobalExceptionHandler {
             case "endDate" -> "La fecha de fin es obligatoria";
             case "startTime" -> "La hora de inicio es obligatoria";
             case "name" -> "El nombre es obligatorio";
+            case "description" -> "La descripción es obligatoria";
+            case "goals" -> "Los objetivos son obligatorios";
             default -> error.getDefaultMessage() != null ? error.getDefaultMessage() : "Valor inválido";
         };
     }

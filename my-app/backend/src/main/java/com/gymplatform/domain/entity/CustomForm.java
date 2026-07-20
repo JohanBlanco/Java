@@ -34,7 +34,7 @@ public class CustomForm {
     private FormAccessType accessType = FormAccessType.PUBLIC;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 40)
     private FormPurpose formPurpose = FormPurpose.CUSTOM;
 
     @Column(nullable = false)

@@ -1,7 +1,9 @@
 package com.gymplatform.domain.entity;
 
+import com.gymplatform.domain.enums.RoutineValidityUnit;
 import jakarta.persistence.*;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -41,6 +43,18 @@ public class Routine {
 
     private Integer daysPerWeek;
 
+    /** Inicio de vigencia (normalmente el día de asignación). */
+    private LocalDate validFrom;
+
+    /** Fin de vigencia inclusive. */
+    private LocalDate validUntil;
+
+    private Integer validityAmount;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 16)
+    private RoutineValidityUnit validityUnit;
+
     @OneToMany(mappedBy = "routine", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("orderIndex ASC")
     private List<RoutineDay> days = new ArrayList<>();
@@ -75,6 +89,14 @@ public class Routine {
     public void setTemporary(boolean temporary) { this.temporary = temporary; }
     public Integer getDaysPerWeek() { return daysPerWeek; }
     public void setDaysPerWeek(Integer daysPerWeek) { this.daysPerWeek = daysPerWeek; }
+    public LocalDate getValidFrom() { return validFrom; }
+    public void setValidFrom(LocalDate validFrom) { this.validFrom = validFrom; }
+    public LocalDate getValidUntil() { return validUntil; }
+    public void setValidUntil(LocalDate validUntil) { this.validUntil = validUntil; }
+    public Integer getValidityAmount() { return validityAmount; }
+    public void setValidityAmount(Integer validityAmount) { this.validityAmount = validityAmount; }
+    public RoutineValidityUnit getValidityUnit() { return validityUnit; }
+    public void setValidityUnit(RoutineValidityUnit validityUnit) { this.validityUnit = validityUnit; }
     public List<RoutineDay> getDays() { return days; }
     public void setDays(List<RoutineDay> days) { this.days = days; }
     public List<RoutineExercise> getExercises() { return exercises; }

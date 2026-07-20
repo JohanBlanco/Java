@@ -21,7 +21,9 @@ export default function RoutineRequestsPanel(_props: Props) {
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+  }, [])
 
   const { filtered, filterInput } = useFilteredList(requests)
 
@@ -35,23 +37,28 @@ export default function RoutineRequestsPanel(_props: Props) {
           <div className="empty-state card">Sin solicitudes pendientes</div>
         ) : filtered.length === 0 ? (
           <div className="empty-state card">Ningún resultado coincide con la búsqueda</div>
-        ) : filtered.map((r) => (
-          <div key={r.id} className="card routine-request-card">
-            <div className="card-list-header">
-              <div className="card-list-header-main">
-                <h3>{r.memberName}</h3>
-                <p className="card-list-meta">
-                  Instructor preferido: {r.preferredInstructorName ?? 'Cualquier instructor'}
-                </p>
+        ) : (
+          filtered.map((r) => (
+            <div key={r.id} className="card routine-request-card">
+              <div className="card-list-header">
+                <div className="card-list-header-main">
+                  <h3>{r.memberName}</h3>
+                  <p className="card-list-meta">
+                    Instructor preferido: {r.preferredInstructorName ?? 'Cualquier instructor'}
+                    {r.assignedInstructorName ? ` · Atendiendo: ${r.assignedInstructorName}` : ''}
+                  </p>
+                </div>
+                <RoutineRequestStatusBadge status={r.status} />
               </div>
-              <RoutineRequestStatusBadge status={r.status} />
+              <p className="card-list-body" title={r.description}>
+                {r.description}
+              </p>
+              <p className="card-list-meta card-list-meta--clamp" title={r.goals}>
+                Objetivos: {r.goals}
+              </p>
             </div>
-            <p className="card-list-body">{r.description}</p>
-            <p className="card-list-meta card-list-meta--clamp" title={r.goals}>
-              Objetivos: {r.goals}
-            </p>
-          </div>
-        ))}
+          ))
+        )}
       </div>
     </>
   )

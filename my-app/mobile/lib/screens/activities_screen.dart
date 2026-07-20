@@ -159,7 +159,7 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
                       children: [
                         Text(a['name'], style: Theme.of(context).textTheme.titleMedium),
                         const SizedBox(height: 4),
-                        Text('${AppDateFormat.formatIsoDate(a['activityDate'] as String?)} · ${a['startTime']} - ${a['endTime']}'),
+                        Text('${AppDateFormat.formatIsoDate(a['activityDate'] as String?)} · ${AppDateFormat.formatTimeRange(a['startTime'] as String?, a['endTime'] as String?)}'),
                         Text(a['locationName'] ?? '', style: Theme.of(context).textTheme.bodySmall),
                         if ((a['description'] ?? '').toString().isNotEmpty)
                           Padding(

@@ -85,144 +85,128 @@ public class AppointmentRequestService {
 
 
     @Transactional
-
     public AppointmentRequestResponse create(Long organizationId, Long memberId, AppointmentRequestCreate request) {
-
         User member = userRepository.findById(memberId)
-
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
-
         if (member.getOrganization() == null || !member.getOrganization().getId().equals(organizationId)) {
-
             throw new ResourceNotFoundException("Usuario no encontrado");
-
         }
-
         if (request.memberId() != null && !member.getRoles().contains(Role.MEMBER)) {
-
             throw new BusinessException("El usuario seleccionado no es miembro del gimnasio");
-
         }
-
-
 
         AppointmentRequest entity;
-
         if (request.openAppointmentId() != null) {
-
-            entity = repository.findOpenByIdAndOrganizationId(request.openAppointmentId(), organizationId)
-
-                    .orElseThrow(() -> new BusinessException("El horario seleccionado ya no está disponible"));
-
-            entity.setMember(member);
-
-            entity.setType(request.type());
-
-            entity.setNotes(request.notes());
-
-            entity.setUpdatedAt(Instant.now());
-
+            entity = claimOpenSlot(organizationId, member, request);
         } else {
-
-            Organization org = organizationRepository.findById(organizationId)
-
-                    .orElseThrow(() -> new ResourceNotFoundException("Gimnasio no encontrado"));
-
-
-
-            entity = new AppointmentRequest();
-
-            entity.setMember(member);
-
-            entity.setOrganization(org);
-
-            entity.setType(request.type());
-
-            entity.setNotes(request.notes());
-
-
-
-            if (request.scheduledStart() != null || request.scheduledEnd() != null) {
-
-                if (request.preferredStaffId() == null) {
-
-                    throw new BusinessException("Debe seleccionar un instructor de preferencia");
-
-                }
-
-                if (request.memberId() != null) {
-
-                    if (staffAvailabilityService.isWithinPublishedAvailability(
-
-                            organizationId, request.scheduledStart(), request.scheduledEnd())) {
-
-                        staffAvailabilityService.validateSlot(
-
-                                organizationId, request.scheduledStart(), request.scheduledEnd());
-
-                    } else {
-
-                        staffAvailabilityService.validateStaffCustomSlot(
-
-                                organizationId, request.scheduledStart(), request.scheduledEnd());
-
-                    }
-
-                } else {
-
-                    staffAvailabilityService.validateSlot(
-
-                            organizationId, request.scheduledStart(), request.scheduledEnd());
-
-                }
-
-                entity.setScheduledStart(request.scheduledStart());
-
-                entity.setScheduledEnd(request.scheduledEnd());
-
-            }
-
+            entity = createNewOrClaimByTime(organizationId, member, request);
         }
 
-
-
-        if (request.preferredStaffId() != null) {
-
-            User preferred = userRepository.findById(request.preferredStaffId())
-
-                    .orElseThrow(() -> new ResourceNotFoundException("Personal no encontrado"));
-
-            if (preferred.getOrganization() == null || !preferred.getOrganization().getId().equals(organizationId)) {
-
-                throw new ResourceNotFoundException("Personal no encontrado");
-
-            }
-
-            if (!RoleUtils.isGymStaff(preferred.getRoles())) {
-
-                throw new BusinessException("El personal seleccionado no puede atender citas");
-
-            }
-
-            entity.setPreferredStaff(preferred);
-
-        } else if (request.openAppointmentId() != null) {
-
-            throw new BusinessException("Debe seleccionar un instructor de preferencia");
-
-        }
-
-
-
+        applyPreferredStaff(organizationId, entity, request);
         confirmScheduledAppointment(entity, organizationId);
-
-
-
-        return toResponse(repository.save(entity));
-
+        return toResponse(repository.saveAndFlush(entity));
     }
 
+    /**
+     * Reserva un placeholder OPEN con bloqueo pesimista: con n espacios y n+1
+     * clientes sobre el mismo horario, solo uno lo obtiene.
+     */
+    private AppointmentRequest claimOpenSlot(Long organizationId, User member, AppointmentRequestCreate request) {
+        // Orden de candados fijo: día/gym → fila OPEN (evita deadlocks con createNewOrClaimByTime)
+        AppointmentRequest peek = repository
+                .findOpenByIdAndOrganizationId(request.openAppointmentId(), organizationId)
+                .orElseThrow(() -> new BusinessException("El horario seleccionado ya no está disponible"));
+        staffAvailabilityService.lockBookingWindow(
+                organizationId, peek.getScheduledStart(), peek.getScheduledEnd());
 
+        AppointmentRequest entity = repository
+                .findOpenByIdAndOrganizationIdForUpdate(request.openAppointmentId(), organizationId)
+                .orElseThrow(() -> new BusinessException("El horario seleccionado ya no está disponible"));
+        if (entity.getStatus() != AppointmentRequestStatus.OPEN) {
+            throw new BusinessException("El horario seleccionado ya no está disponible");
+        }
+        entity.setMember(member);
+        entity.setType(request.type());
+        entity.setNotes(request.notes());
+        entity.setUpdatedAt(Instant.now());
+        return entity;
+    }
+
+    private AppointmentRequest createNewOrClaimByTime(
+            Long organizationId, User member, AppointmentRequestCreate request) {
+        Organization org = organizationRepository.findById(organizationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Gimnasio no encontrado"));
+
+        AppointmentRequest entity = new AppointmentRequest();
+        entity.setMember(member);
+        entity.setOrganization(org);
+        entity.setType(request.type());
+        entity.setNotes(request.notes());
+
+        if (request.scheduledStart() == null && request.scheduledEnd() == null) {
+            return entity;
+        }
+        if (request.preferredStaffId() == null) {
+            throw new BusinessException("Debe seleccionar un instructor de preferencia");
+        }
+        if (request.scheduledStart() == null || request.scheduledEnd() == null) {
+            throw new BusinessException("Horario de cita inválido");
+        }
+
+        Instant start = request.scheduledStart();
+        Instant end = request.scheduledEnd();
+        staffAvailabilityService.lockBookingWindow(organizationId, start, end);
+
+        // Preferir reclamar el OPEN exacto (mismo cupo físico) en vez de crear otro registro
+        var openAtTime = repository.findOpenAtExactTimeForUpdate(organizationId, start, end);
+        if (!openAtTime.isEmpty()) {
+            AppointmentRequest open = openAtTime.get(0);
+            open.setMember(member);
+            open.setType(request.type());
+            open.setNotes(request.notes());
+            open.setUpdatedAt(Instant.now());
+            return open;
+        }
+
+        boolean withinPublished = staffAvailabilityService.isWithinPublishedAvailability(
+                organizationId, start, end);
+        if (request.memberId() != null) {
+            if (withinPublished) {
+                // El espacio ya no tiene placeholder OPEN: otro cliente lo tomó
+                throw new BusinessException("El horario seleccionado ya no está disponible");
+            }
+            staffAvailabilityService.validateStaffCustomSlot(organizationId, start, end);
+        } else if (withinPublished) {
+            throw new BusinessException("El horario seleccionado ya no está disponible");
+        } else {
+            staffAvailabilityService.validateSlot(organizationId, start, end);
+        }
+
+        entity.setScheduledStart(start);
+        entity.setScheduledEnd(end);
+        return entity;
+    }
+
+    private void applyPreferredStaff(Long organizationId, AppointmentRequest entity, AppointmentRequestCreate request) {
+        if (request.preferredStaffId() != null) {
+            User preferred = userRepository.findById(request.preferredStaffId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Personal no encontrado"));
+            if (preferred.getOrganization() == null || !preferred.getOrganization().getId().equals(organizationId)) {
+                throw new ResourceNotFoundException("Personal no encontrado");
+            }
+            if (!RoleUtils.isGymStaff(preferred.getRoles())) {
+                throw new BusinessException("El personal seleccionado no puede atender citas");
+            }
+            entity.setPreferredStaff(preferred);
+            return;
+        }
+        // Miembro reclamando OPEN sin instructor explícito: permitido
+        if (request.openAppointmentId() == null
+                && entity.getStatus() != AppointmentRequestStatus.OPEN
+                && entity.getScheduledStart() != null) {
+            throw new BusinessException("Debe seleccionar un instructor de preferencia");
+        }
+    }
 
     private void confirmScheduledAppointment(AppointmentRequest entity, Long organizationId) {
 

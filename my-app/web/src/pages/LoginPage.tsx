@@ -23,7 +23,8 @@ export default function LoginPage() {
 
   const handleLoginInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { value } = e.target
-    if (value.includes('@')) return
+    // Email: no formatear. Cédula: solo dígitos.
+    if (/[a-zA-Z@]/.test(value)) return
     const formatted = formatNationalIdInput(value)
     if (formatted !== value) {
       e.target.value = formatted
@@ -54,7 +55,7 @@ export default function LoginPage() {
     <div className="login-page">
       <div className="card login-card">
         <h1>GymPlatform</h1>
-        <p className="subtitle">Administra tu gimnasio desde un solo lugar</p>
+        <p className="subtitle">Administración de gimnasios</p>
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
@@ -120,15 +121,6 @@ export default function LoginPage() {
             {loading ? 'Ingresando...' : 'Iniciar sesión'}
           </button>
         </form>
-
-        <div style={{ marginTop: '1.5rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-          <p><strong>Demo:</strong></p>
-          <p>Platform Owner: admin@gymplatform.com o 109990001 / admin123</p>
-          <p>Gym Owner: dueno@fitlife.com o 104560123 / 12345678</p>
-          <p>Instructor: instructor@fitlife.com o 203451234 / instructor123</p>
-          <p>Recepcionista: recepcion@fitlife.com o 305672345 / recepcion123</p>
-          <p>Miembro: miembro@fitlife.com o 190205678 / miembro123</p>
-        </div>
       </div>
     </div>
   )

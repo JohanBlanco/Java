@@ -140,7 +140,7 @@ export default function PackagesSection() {
               onKeyDown={(e) => e.key === 'Enter' && openEdit(p)}
             >
               <h3>{p.name}</h3>
-              <p style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--primary)' }}>
+              <p style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--accent-ink)' }}>
                 {formatMoney(pkgSalePrice(p))}/mes
               </p>
               {!!p.applyIva && (
@@ -148,7 +148,11 @@ export default function PackagesSection() {
                   Base {formatMoney(p.price)} + {describeIva(true, p.ivaPercent)}
                 </p>
               )}
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>{p.description}</p>
+              {!!p.description?.trim() && (
+                <p className="card-desc" title={p.description.trim()}>
+                  {p.description}
+                </p>
+              )}
               <p style={{ fontSize: '0.85rem', marginTop: '0.5rem' }}>{freeLabel(p)}</p>
               {p.addons.length > 0 && (
                 <div style={{ marginTop: '0.75rem' }}>

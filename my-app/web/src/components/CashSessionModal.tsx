@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CashDenomination, CashSession } from '../types'
+import { formatDateTime } from '../utils/dateFormat'
 import { formatMoney } from '../utils/money'
 
 type Props = {
@@ -99,9 +100,9 @@ export default function CashSessionModal({
         <h2>{mode === 'open' ? 'Abrir caja' : 'Cerrar caja'}</h2>
         <p className="confirm-dialog-message">
           {mode === 'open'
-            ? `Se registrará la apertura con la fecha y hora actuales (${new Date().toLocaleString('es-CR', { dateStyle: 'short', timeStyle: 'short' })}). El total debe coincidir con el fondo configurado.`
+            ? `Se registrará la apertura con la fecha y hora actuales (${formatDateTime(new Date(), 'es')}). El total debe coincidir con el fondo configurado.`
             : session?.openedAt
-              ? `Turno abierto el ${new Date(session.openedAt).toLocaleString('es-CR', { dateStyle: 'short', timeStyle: 'short' })}. Al cerrar se guarda la fecha y hora actuales.`
+              ? `Turno abierto el ${formatDateTime(session.openedAt, 'es')}. Al cerrar se guarda la fecha y hora actuales.`
               : 'Cuenta el efectivo al cerrar. El sistema compara con el esperado y registra la hora de cierre.'}
         </p>
 
@@ -125,7 +126,7 @@ export default function CashSessionModal({
                 <span>Abierta</span>
                 <strong>
                   {session.openedAt
-                    ? new Date(session.openedAt).toLocaleString('es-CR', { dateStyle: 'short', timeStyle: 'short' })
+                    ? formatDateTime(session.openedAt, 'es')
                     : '—'}
                 </strong>
               </div>

@@ -156,6 +156,16 @@ public class StoreController {
         return storeSaleService.dayReport(SecurityUtils.requireOrganizationId(), date);
     }
 
+    @Operation(summary = "Eliminar (anular) un movimiento mientras la caja esté abierta")
+    @DeleteMapping("/store/sales/{id}")
+    public StoreSaleResponse voidSale(@PathVariable Long id) {
+        return storeSaleService.voidSale(
+                SecurityUtils.requireOrganizationId(),
+                id,
+                SecurityUtils.currentUser().getId()
+        );
+    }
+
     @Operation(summary = "Adjuntar comprobante SINPE a una venta")
     @PutMapping("/store/sales/{id}/payment-proof")
     public StoreSaleResponse attachPaymentProof(

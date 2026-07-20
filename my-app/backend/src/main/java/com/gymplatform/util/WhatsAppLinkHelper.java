@@ -19,7 +19,8 @@ public final class WhatsAppLinkHelper {
         if (digits.isBlank()) {
             throw new IllegalArgumentException("recipientPhone is required");
         }
-        String encoded = URLEncoder.encode(message == null ? "" : message, StandardCharsets.UTF_8);
+        String encoded = URLEncoder.encode(message == null ? "" : message, StandardCharsets.UTF_8)
+                .replace("+", "%20");
         return "https://wa.me/" + digits + "?text=" + encoded;
     }
 }

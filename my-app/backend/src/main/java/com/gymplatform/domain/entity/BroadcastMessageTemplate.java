@@ -31,6 +31,19 @@ public class BroadcastMessageTemplate {
     @Column(nullable = false)
     private BroadcastTemplatePurpose purpose = BroadcastTemplatePurpose.GENERAL;
 
+    /** Membresía asociada (p. ej. bienvenida Básica / Regular / Premium). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "membership_package_id")
+    private MembershipPackage membershipPackage;
+
+    /**
+     * Enlaces de media/archivos para incluir en el mensaje wa.me (JSON array de URLs).
+     * wa.me no adjunta archivos: se envían como links en el texto.
+     */
+    @Lob
+    @Column(name = "media_links_json")
+    private String mediaLinksJson;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -48,6 +61,12 @@ public class BroadcastMessageTemplate {
     public void setBody(String body) { this.body = body; }
     public BroadcastTemplatePurpose getPurpose() { return purpose; }
     public void setPurpose(BroadcastTemplatePurpose purpose) { this.purpose = purpose; }
+    public MembershipPackage getMembershipPackage() { return membershipPackage; }
+    public void setMembershipPackage(MembershipPackage membershipPackage) {
+        this.membershipPackage = membershipPackage;
+    }
+    public String getMediaLinksJson() { return mediaLinksJson; }
+    public void setMediaLinksJson(String mediaLinksJson) { this.mediaLinksJson = mediaLinksJson; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }

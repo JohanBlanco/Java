@@ -199,7 +199,7 @@ export function buildStoreSaleWhatsAppMessage(sale: StoreSale, gymName = 'GymPla
   const lines = [
     `*${gymName}*`,
     `Comprobante de venta #${sale.id}`,
-    `Fecha: ${new Date(sale.createdAt).toLocaleString('es-CR', { dateStyle: 'short', timeStyle: 'short' })}`,
+    `Fecha: ${formatPdfDateTime(sale.createdAt)}`,
     sale.memberName ? `Cliente: ${sale.memberName}` : null,
     '',
     '*Detalle*',

@@ -62,8 +62,12 @@ export function readThemeAccentHex(): string {
 
 export function formatPdfDateTime(iso: string) {
   return new Date(iso).toLocaleString('es-CR', {
-    dateStyle: 'long',
-    timeStyle: 'short',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
   })
 }
 

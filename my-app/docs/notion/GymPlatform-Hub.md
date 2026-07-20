@@ -49,7 +49,7 @@ cd mobile && flutter create . --org com.gymplatform && flutter pub get && flutte
 | Rol | Email | Password |
 |-----|-------|----------|
 | Platform Owner | admin@gymplatform.com | admin123 |
-| Gym Owner | dueno@fitlife.com | 12345678 |
+| Gym Owner | dueno@fitlife.com | 12345678 | Admin + Recepcionista + Instructor + Miembro |
 | Instructor | instructor@fitlife.com | instructor123 |
 | Member | miembro@fitlife.com | miembro123 |
 
@@ -110,6 +110,13 @@ cd mobile && flutter create . --org com.gymplatform && flutter pub get && flutte
 ---
 
 ## Bitácora de sesiones
+
+### 2026-07-19
+- Menú **Mercadeo** (actividades, ofertas de productos, decoración del mes).
+- Promociones: subir imagen, URL o sugerencias; carrusel en inicio del miembro.
+- Ofertas de productos con etiqueta % OFF en el punto de venta.
+- Temas estacionales (Navidad, Halloween, San Valentín, etc.).
+- Retención automática: citas y actividades se eliminan un mes después de terminar.
 
 ### 2026-07-10
 - Proyecto inicial creado

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../config/role_helper.dart';
 import '../providers/auth_provider.dart';
 import '../utils/appointment_labels.dart';
+import '../utils/date_format.dart';
 import '../utils/list_filter.dart';
 import '../widgets/list_filter_field.dart';
 
@@ -172,7 +173,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           margin: const EdgeInsets.only(bottom: 8),
           child: ListTile(
             title: Text(a['name'] ?? ''),
-            subtitle: Text('${a['startTime']} · ${a['locationName'] ?? ''}'),
+            subtitle: Text('${AppDateFormat.formatTime(a['startTime'] as String?)} · ${a['locationName'] ?? ''}'),
             trailing: Text('${a['confirmedReservations'] ?? 0} conf.'),
           ),
         );

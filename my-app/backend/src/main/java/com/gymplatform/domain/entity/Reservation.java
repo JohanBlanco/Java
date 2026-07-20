@@ -6,7 +6,13 @@ import java.time.Instant;
 import java.time.LocalDate;
 
 @Entity
-@Table(name = "reservations")
+@Table(
+        name = "reservations",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_reservations_activity_member_occurrence",
+                columnNames = {"activity_id", "member_id", "occurrence_date"}
+        )
+)
 public class Reservation {
 
     @Id

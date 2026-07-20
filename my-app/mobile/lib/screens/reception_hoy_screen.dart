@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../utils/date_format.dart';
 
 class ReceptionHoyScreen extends StatefulWidget {
   const ReceptionHoyScreen({super.key});
@@ -57,7 +58,7 @@ class _ReceptionHoyScreenState extends State<ReceptionHoyScreen> {
                   margin: const EdgeInsets.only(bottom: 8),
                   child: ListTile(
                     title: Text(a['name'] ?? ''),
-                    subtitle: Text('${a['startTime']} · ${a['locationName'] ?? ''}'),
+                    subtitle: Text('${AppDateFormat.formatTime(a['startTime'] as String?)} · ${a['locationName'] ?? ''}'),
                     trailing: Text('${a['confirmedReservations'] ?? 0} conf.'),
                   ),
                 );

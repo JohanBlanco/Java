@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from '../../api'
+import ConfirmDialog from '../../components/ConfirmDialog'
 import type { CashDayReport, CashSession, PaymentMethod, StoreSale, StoreSalesSummary } from '../../types'
+import { toIsoDate } from '../../utils/calendarUtils'
 import { formatMoney } from '../../utils/money'
 import { formatSalePaymentsSummary, readImageFileAsDataUrl, saleHasSinpePayment } from '../../utils/paymentProof'
 import { useToast } from '../../toast'
@@ -39,7 +41,7 @@ const emptyFilters = (): HistoryFilters => ({
 })
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10)
+  return toIsoDate(new Date())
 }
 
 function monthInputValue(isoDate: string) {
@@ -59,8 +61,12 @@ function typeLabel(type: StoreSale['type']) {
 function formatDateTime(value: string | null | undefined) {
   if (!value) return '—'
   return new Date(value).toLocaleString('es-CR', {
-    dateStyle: 'short',
-    timeStyle: 'short',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
   })
 }
 
@@ -161,16 +167,21 @@ function SummaryCards({ summary }: { summary: StoreSalesSummary }) {
 function SaleCard({
   sale,
   onUpdated,
+  onDeleted,
 }: {
   sale: StoreSale
   onUpdated?: (sale: StoreSale) => void
+  onDeleted?: (saleId: number) => void
 }) {
   const { showApiError, showSuccess, showWarning } = useToast()
   const [uploading, setUploading] = useState(false)
   const [viewingProof, setViewingProof] = useState<string | null>(null)
   const [loadingProof, setLoadingProof] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const canAttachSinpe = sale.type === 'SALE' && saleHasSinpePayment(sale)
+  const canDelete = sale.deletable === true
 
   const viewProof = async () => {
     setLoadingProof(true)
@@ -199,6 +210,20 @@ function SaleCard({
       }
     } finally {
       setUploading(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    try {
+      await api.deleteStoreSale(sale.id)
+      showSuccess('Movimiento eliminado. Stock y totales de caja actualizados.')
+      setConfirmDelete(false)
+      onDeleted?.(sale.id)
+    } catch (err) {
+      showApiError(err, 'No se pudo eliminar el movimiento')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -231,29 +256,40 @@ function SaleCard({
         ))}
       </ul>
       {sale.notes && <p className="form-hint">{sale.notes}</p>}
-      {canAttachSinpe && (
-        <div className="store-history-proof-actions">
-          {sale.hasPaymentProof ? (
-            <button type="button" className="btn-secondary" disabled={loadingProof} onClick={() => void viewProof()}>
-              {loadingProof ? 'Cargando…' : 'Ver comprobante'}
-            </button>
-          ) : null}
-          <label className="btn-secondary store-history-proof-upload">
-            {uploading ? 'Subiendo…' : sale.hasPaymentProof ? 'Reemplazar comprobante' : 'Subir comprobante SINPE'}
-            <input
-              type="file"
-              accept="image/*"
-              hidden
-              disabled={uploading}
-              onChange={(e) => {
-                const file = e.target.files?.[0]
-                e.target.value = ''
-                if (file) void uploadProof(file)
-              }}
-            />
-          </label>
-        </div>
-      )}
+      <div className="store-history-proof-actions">
+        {canAttachSinpe && (
+          <>
+            {sale.hasPaymentProof ? (
+              <button type="button" className="btn-secondary" disabled={loadingProof} onClick={() => void viewProof()}>
+                {loadingProof ? 'Cargando…' : 'Ver comprobante'}
+              </button>
+            ) : null}
+            <label className="btn-secondary store-history-proof-upload">
+              {uploading ? 'Subiendo…' : sale.hasPaymentProof ? 'Reemplazar comprobante' : 'Subir comprobante SINPE'}
+              <input
+                type="file"
+                accept="image/*"
+                hidden
+                disabled={uploading}
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  e.target.value = ''
+                  if (file) void uploadProof(file)
+                }}
+              />
+            </label>
+          </>
+        )}
+        {canDelete && (
+          <button
+            type="button"
+            className="btn-secondary btn-danger-outline"
+            onClick={() => setConfirmDelete(true)}
+          >
+            Eliminar
+          </button>
+        )}
+      </div>
       {viewingProof && (
         <div
           className="modal-overlay confirm-dialog-overlay"
@@ -271,6 +307,19 @@ function SaleCard({
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Eliminar movimiento"
+        message={
+          sale.type === 'SALE'
+            ? `Se eliminará la venta #${sale.id} (${formatMoney(sale.total)}). Se devolverá el stock y, si aplica, se anulará la membresía asignada. Solo es posible mientras la caja siga abierta.`
+            : `Se eliminará este movimiento (${formatMoney(sale.total)}). Solo es posible mientras la caja siga abierta.`
+        }
+        confirmLabel="Eliminar"
+        loading={deleting}
+        onConfirm={() => void handleDelete()}
+        onClose={() => !deleting && setConfirmDelete(false)}
+      />
     </article>
   )
 }
@@ -280,11 +329,13 @@ function CollapsibleGroup({
   expanded,
   onToggle,
   onSaleUpdated,
+  onSaleDeleted,
 }: {
   group: SaleGroup
   expanded: boolean
   onToggle: () => void
   onSaleUpdated?: (sale: StoreSale) => void
+  onSaleDeleted?: (saleId: number) => void
 }) {
   return (
     <section className={`store-history-session card${expanded ? ' is-expanded' : ''}`}>
@@ -337,7 +388,12 @@ function CollapsibleGroup({
           ) : (
             <div className="store-history-list">
               {group.sales.map((sale) => (
-                <SaleCard key={sale.id} sale={sale} onUpdated={onSaleUpdated} />
+                <SaleCard
+                  key={sale.id}
+                  sale={sale}
+                  onUpdated={onSaleUpdated}
+                  onDeleted={onSaleDeleted}
+                />
               ))}
             </div>
           )}
@@ -474,36 +530,19 @@ export default function TiendaHistorialSection() {
     return []
   }, [period, dayReport, filters, filteredSales])
 
-  // Expandir todo al cargar periodo/fecha (caja abierta y cerradas visibles)
+  const groupKeysSignature = useMemo(
+    () => groups.map((g) => g.key).join('\0'),
+    [groups],
+  )
+
+  // Al cargar (o cambiar periodo/fecha/datos), días/meses/cajas quedan abiertos
   useEffect(() => {
     if (loading) return
-    const keys =
-      period === 'day' && dayReport
-        ? dayReport.sessions.map((block, index) =>
-            block.session.id != null ? `session-${block.session.id}` : `orphan-${index}`,
-          )
-        : period === 'month'
-          ? groupsByDay(sales).map((g) => g.key)
-          : groupsByMonth(sales).map((g) => g.key)
+    const keys = groupKeysSignature ? groupKeysSignature.split('\0').filter(Boolean) : []
     const next: Record<string, boolean> = {}
     for (const key of keys) next[key] = true
     setExpanded(next)
-  }, [loading, period, date, dayReport, sales])
-
-  // Si aparecen grupos nuevos por filtros, dejarlos abiertos por defecto
-  useEffect(() => {
-    setExpanded((prev) => {
-      let changed = false
-      const next = { ...prev }
-      for (const g of groups) {
-        if (next[g.key] === undefined) {
-          next[g.key] = true
-          changed = true
-        }
-      }
-      return changed ? next : prev
-    })
-  }, [groups])
+  }, [loading, period, date, groupKeysSignature])
 
   const visibleSummary = useMemo(() => {
     if (period === 'day') {
@@ -534,6 +573,10 @@ export default function TiendaHistorialSection() {
     })
   }, [])
 
+  const handleSaleDeleted = useCallback((_saleId: number) => {
+    void load()
+  }, [load])
+
   const displayGroups = useMemo(() => {
     if (!hasActiveFilters) return groups
     return groups.filter((g) => g.sales.length > 0)
@@ -548,7 +591,7 @@ export default function TiendaHistorialSection() {
   const listEmpty = !loading && !dayEmpty && displayGroups.length === 0
 
   const toggleGroup = (key: string) => {
-    setExpanded((prev) => ({ ...prev, [key]: !prev[key] }))
+    setExpanded((prev) => ({ ...prev, [key]: !(prev[key] ?? true) }))
   }
 
   const expandAll = () => {
@@ -781,9 +824,10 @@ export default function TiendaHistorialSection() {
             <CollapsibleGroup
               key={group.key}
               group={group}
-              expanded={expanded[group.key] !== false}
+              expanded={expanded[group.key] ?? true}
               onToggle={() => toggleGroup(group.key)}
               onSaleUpdated={patchSale}
+              onSaleDeleted={handleSaleDeleted}
             />
           ))}
         </div>

@@ -9,6 +9,7 @@ import {
   durationLabelForSchedule,
   inferDurationPresetId,
 } from './activityDurationUtils'
+import { formatTime } from './dateFormat'
 import { minutesToTimeString } from './timelineResizeUtils'
 
 const PREVIEW_DATE = '2000-01-01'
@@ -49,7 +50,7 @@ export function formatActivityScheduleSummary(
   durationLabel: string,
 ): string {
   if (allDay) return 'Todo el día'
-  if (!endTime) return `${startTime.slice(0, 5)} · ${durationLabel}`
+  if (!endTime) return `${formatTime(startTime.slice(0, 5))} · ${durationLabel}`
   const range = formatTimeRange(
     combineDateAndTime(activityDate, startTime.slice(0, 5)),
     combineDateAndTime(activityDate, endTime.slice(0, 5)),

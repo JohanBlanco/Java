@@ -5,11 +5,16 @@ import com.gymplatform.domain.entity.Organization;
 import com.gymplatform.domain.entity.User;
 import com.gymplatform.domain.enums.MemberMembershipStatus;
 import com.gymplatform.domain.enums.Role;
+import com.gymplatform.dto.GuestWhatsappMessagesRequest;
 import com.gymplatform.dto.MemberMembershipInfo;
 import com.gymplatform.dto.MemberProfileUpdateRequest;
+import com.gymplatform.dto.InstructorOptionResponse;
 import com.gymplatform.dto.UserCreateRequest;
 import com.gymplatform.dto.UserCreateResponse;
 import com.gymplatform.dto.UserResponse;
+import com.gymplatform.dto.UserWhatsappMessagesRequest;
+import com.gymplatform.dto.WhatsappBulkMessagesOutboundResponse;
+import com.gymplatform.dto.WhatsappMessagesOutboundResponse;
 import com.gymplatform.dto.WhatsappOutboundResponse;
 import com.gymplatform.exception.BusinessException;
 import com.gymplatform.exception.ResourceNotFoundException;
@@ -36,17 +41,20 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final MemberSubscriptionService memberSubscriptionService;
     private final CustomFormService customFormService;
+    private final BroadcastSettingsService broadcastSettingsService;
 
     public UserService(UserRepository userRepository, MemberProfileRepository memberProfileRepository,
                        OrganizationRepository organizationRepository, PasswordEncoder passwordEncoder,
                        MemberSubscriptionService memberSubscriptionService,
-                       CustomFormService customFormService) {
+                       CustomFormService customFormService,
+                       BroadcastSettingsService broadcastSettingsService) {
         this.userRepository = userRepository;
         this.memberProfileRepository = memberProfileRepository;
         this.organizationRepository = organizationRepository;
         this.passwordEncoder = passwordEncoder;
         this.memberSubscriptionService = memberSubscriptionService;
         this.customFormService = customFormService;
+        this.broadcastSettingsService = broadcastSettingsService;
     }
 
     @Transactional
@@ -76,11 +84,11 @@ public class UserService {
         user = userRepository.save(user);
         ensureMemberProfile(user, request);
         assignMembershipIfRequested(organizationId, user, request);
-        String whatsappUrl = maybeSendRegistrationForm(organizationId, roles, request, user);
-        return new UserCreateResponse(toUserResponse(user), whatsappUrl);
+        WhatsappMessagesOutboundResponse outbound = maybePrepareMemberWhatsapp(organizationId, roles, request, user);
+        return UserCreateResponse.of(toUserResponse(user), outbound);
     }
 
-    private String maybeSendRegistrationForm(
+    private WhatsappMessagesOutboundResponse maybePrepareMemberWhatsapp(
             Long organizationId,
             Set<Role> roles,
             UserCreateRequest request,
@@ -88,15 +96,123 @@ public class UserService {
         if (!roles.contains(Role.MEMBER)) {
             return null;
         }
-        boolean shouldSend = request.sendRegistrationForm() == null
-                || Boolean.TRUE.equals(request.sendRegistrationForm());
-        if (!shouldSend) {
+        boolean sendForm = Boolean.TRUE.equals(request.sendRegistrationForm());
+        List<Long> templateIds = request.broadcastTemplateIds() != null
+                ? request.broadcastTemplateIds()
+                : List.of();
+        if (!sendForm && templateIds.isEmpty()) {
             return null;
         }
         if (user.getWhatsappPhone() == null || user.getWhatsappPhone().isBlank()) {
             return null;
         }
-        return customFormService.buildRegistrationFormWhatsappUrl(organizationId, user).orElse(null);
+        if (!broadcastSettingsService.isWhatsAppEnabled(organizationId)) {
+            return null;
+        }
+        String registrationMessage = sendForm
+                ? customFormService.composeRegistrationFormMessage(organizationId, user)
+                : null;
+        return broadcastSettingsService.prepareMemberWhatsappMessages(
+                organizationId, user, sendForm, templateIds, registrationMessage);
+    }
+
+    @Transactional
+    public WhatsappMessagesOutboundResponse sendWhatsappMessages(
+            Long organizationId,
+            Long userId,
+            UserWhatsappMessagesRequest request) {
+        User user = requireStaffUser(organizationId, userId);
+        if (!user.hasRole(Role.MEMBER)) {
+            throw new BusinessException("Solo se pueden enviar mensajes de WhatsApp a miembros");
+        }
+        boolean sendForm = Boolean.TRUE.equals(request.sendRegistrationForm());
+        List<Long> templateIds = request.templateIds() != null ? request.templateIds() : List.of();
+        if (!sendForm && templateIds.isEmpty()) {
+            throw new BusinessException("Selecciona al menos un mensaje para enviar");
+        }
+        String registrationMessage = sendForm
+                ? customFormService.composeRegistrationFormMessage(organizationId, user)
+                : null;
+        return broadcastSettingsService.prepareMemberWhatsappMessages(
+                organizationId, user, sendForm, templateIds, registrationMessage);
+    }
+
+    /**
+     * Envía formulario / plantillas a un número de WhatsApp que aún no es usuario del gym
+     * (p. ej. persona por inscribir).
+     */
+    @Transactional
+    public WhatsappMessagesOutboundResponse sendWhatsappMessagesToPhone(
+            Long organizationId,
+            GuestWhatsappMessagesRequest request) {
+        boolean sendForm = Boolean.TRUE.equals(request.sendRegistrationForm());
+        List<Long> templateIds = request.templateIds() != null ? request.templateIds() : List.of();
+        if (!sendForm && templateIds.isEmpty()) {
+            throw new BusinessException("Selecciona al menos un mensaje para enviar");
+        }
+        String phone = WhatsAppPhoneHelper.normalizeCostaRicaLocal(request.whatsappPhone());
+        String firstName = request.firstName() != null ? request.firstName().trim() : "";
+        String registrationMessage = sendForm
+                ? customFormService.composeGuestRegistrationFormMessage(organizationId, firstName)
+                : null;
+        return broadcastSettingsService.prepareGuestWhatsappMessages(
+                organizationId, phone, firstName, sendForm, templateIds, registrationMessage);
+    }
+
+    /**
+     * Envía los mensajes seleccionados a todos los usuarios activos del gimnasio con WhatsApp.
+     * Requiere Cloud API (no wa.me).
+     */
+    @Transactional
+    public WhatsappBulkMessagesOutboundResponse sendWhatsappMessagesToAllWithPhone(
+            Long organizationId,
+            UserWhatsappMessagesRequest request) {
+        boolean sendForm = Boolean.TRUE.equals(request.sendRegistrationForm());
+        List<Long> templateIds = request.templateIds() != null ? request.templateIds() : List.of();
+        if (!sendForm && templateIds.isEmpty()) {
+            throw new BusinessException("Selecciona al menos un mensaje para enviar");
+        }
+        if (!broadcastSettingsService.isWhatsAppEnabled(organizationId)) {
+            throw new BusinessException(
+                    "Activa WhatsApp en Configuración → Mensajes de difusión para enviar mensajes");
+        }
+        if (!broadcastSettingsService.isCloudApiDelivery(organizationId)) {
+            throw new BusinessException(
+                    "El envío a todos requiere WhatsApp Cloud API. "
+                            + "Actívalo en Configuración → Mensajes de difusión, o envía a un usuario a la vez.");
+        }
+
+        List<User> recipients = userRepository.findByOrganizationId(organizationId).stream()
+                .filter(User::isActive)
+                .filter(u -> u.getWhatsappPhone() != null && !u.getWhatsappPhone().isBlank())
+                .toList();
+        if (recipients.isEmpty()) {
+            throw new BusinessException("No hay usuarios activos con número de WhatsApp");
+        }
+
+        int sent = 0;
+        int failed = 0;
+        List<String> errors = new java.util.ArrayList<>();
+        for (User user : recipients) {
+            try {
+                String registrationMessage = sendForm
+                        ? customFormService.composeRegistrationFormMessage(organizationId, user)
+                        : null;
+                broadcastSettingsService.prepareMemberWhatsappMessages(
+                        organizationId, user, sendForm, templateIds, registrationMessage);
+                sent++;
+            } catch (Exception ex) {
+                failed++;
+                if (errors.size() < 8) {
+                    String name = (user.getFirstName() + " " + user.getLastName()).trim();
+                    String detail = ex.getMessage() != null ? ex.getMessage() : "error al enviar";
+                    errors.add(name + ": " + detail);
+                }
+            }
+        }
+
+        return new WhatsappBulkMessagesOutboundResponse(
+                recipients.size(), sent, failed, "CLOUD_API", errors);
     }
 
     @Transactional(readOnly = true)
@@ -218,7 +334,7 @@ public class UserService {
                     List.of(Role.GYM_OWNER),
                     null, null, null, null, null,
                     String.format("8%08d", organizationId % 100_000_000L),
-                    null, false
+                    null, false, null
             ));
             return;
         }
@@ -247,6 +363,18 @@ public class UserService {
     public List<UserResponse> findByOrganization(Long organizationId) {
         return userRepository.findByOrganizationId(organizationId).stream()
                 .map(this::toUserResponse)
+                .toList();
+    }
+
+    /** Instructores/admins activos del gym (lista segura para miembros). */
+    public List<InstructorOptionResponse> findInstructors(Long organizationId) {
+        return userRepository.findByOrganizationId(organizationId).stream()
+                .filter(User::isActive)
+                .filter(u -> u.hasRole(Role.INSTRUCTOR) || u.hasRole(Role.GYM_OWNER))
+                .sorted(java.util.Comparator
+                        .comparing(User::getFirstName, String.CASE_INSENSITIVE_ORDER)
+                        .thenComparing(User::getLastName, String.CASE_INSENSITIVE_ORDER))
+                .map(u -> new InstructorOptionResponse(u.getId(), u.getFirstName(), u.getLastName()))
                 .toList();
     }
 

@@ -24,6 +24,6 @@ public class RegistrationFormBootstrap implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         organizationRepository.findAll().forEach(org ->
-                customFormService.ensureMemberRegistrationForm(org.getId()));
+                customFormService.ensureSystemForms(org.getId()));
     }
 }

@@ -1,6 +1,15 @@
 import SignaturePad from '../../../components/SignaturePad'
 import type { FormField, FormFieldType } from '../../../types'
 
+/** Opciones tipo "12:Mensual" muestran solo la etiqueta. */
+function formatOptionLabel(option: string): string {
+  const colon = option.indexOf(':')
+  if (colon > 0 && /^\d+$/.test(option.slice(0, colon))) {
+    return option.slice(colon + 1)
+  }
+  return option
+}
+
 type Props = {
   field: FormField
   preview?: boolean
@@ -87,7 +96,7 @@ function renderControl(
         >
           <option value="" disabled>Seleccionar…</option>
           {field.options.map((option) => (
-            <option key={option} value={option}>{option}</option>
+            <option key={option} value={option}>{formatOptionLabel(option)}</option>
           ))}
         </select>
       )
@@ -104,7 +113,7 @@ function renderControl(
                 checked={value === option}
                 onChange={() => onChange?.(option)}
               />
-              <span>{option}</span>
+              <span>{formatOptionLabel(option)}</span>
             </label>
           ))}
         </div>
@@ -164,7 +173,8 @@ function renderControl(
       return (
         <input
           {...common}
-          type="text"
+          type={field.id === 'u-password' ? 'password' : 'text'}
+          autoComplete={field.id === 'u-password' ? 'new-password' : undefined}
           value={typeof value === 'string' ? value : ''}
           onChange={(e) => onChange?.(e.target.value)}
         />

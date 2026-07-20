@@ -277,7 +277,7 @@ class _ReceptionActividadesScreenState extends State<ReceptionActividadesScreen>
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('${_formatSeries(a)} · ${_timeShort(a['startTime'])} - ${_timeShort(a['endTime'])}'),
+                      Text('${_formatSeries(a)} · ${AppDateFormat.formatTimeRange(a['startTime'] as String?, a['endTime'] as String?)}'),
                       Text(a['locationName'] ?? ''),
                       Text(
                         'Cupo: ${a['capacity'] ?? 'Ilimitado'} · ${((a['confirmedReservations'] as num?) ?? 0).toInt()} reservaciones activas',

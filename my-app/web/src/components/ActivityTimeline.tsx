@@ -42,6 +42,9 @@ type Props = {
   anchor: Date
   editable?: boolean
   onActivityEdit?: (activity: Activity) => void
+  /** Click de solo lectura (p. ej. miembro reserva/cancela). */
+  onActivitySelect?: (activity: Activity) => void
+  isReserved?: (activity: Activity) => boolean
   onCreateSlot?: (dateIso: string, startMin: number, endMin: number) => void
   onMoveOccurrence?: (
     activity: Activity,
@@ -62,23 +65,27 @@ function activityKey(a: Activity): string {
 
 function formatHourLabel(hour: number): string {
   const date = new Date(2000, 0, 1, hour, 0)
-  return date.toLocaleTimeString('en-US', { hour: 'numeric', hour12: true })
+  return date.toLocaleTimeString('es-CR', { hour: 'numeric', hour12: true })
 }
 
 function ActivityBlock({
   activity,
   editable,
   onEdit,
+  onSelect,
   onMove,
   compactWeek,
   draggingHidden,
+  reserved,
 }: {
   activity: Activity
   editable?: boolean
   onEdit?: (activity: Activity) => void
+  onSelect?: (activity: Activity) => void
   onMove?: (activity: Activity, e: MouseEvent<HTMLElement>) => void
   compactWeek?: boolean
   draggingHidden?: boolean
+  reserved?: boolean
 }) {
   const style = activityTimelineStyle(activity)
   if (!style) return null
@@ -87,7 +94,7 @@ function ActivityBlock({
 
   const full = isActivityFull(activity)
   const cancelled = activity.occurrenceCancelled === true
-  const blockClass = `appointment-block activity-block${activity.hasOccurrenceOverride ? ' activity-block--override' : ''}${full ? ' activity-block--full' : ''}${cancelled ? ' activity-block--cancelled' : ''}`
+  const blockClass = `appointment-block activity-block${activity.hasOccurrenceOverride ? ' activity-block--override' : ''}${full ? ' activity-block--full' : ''}${cancelled ? ' activity-block--cancelled' : ''}${reserved ? ' activity-block--reserved' : ''}`
 
   const content = (
     <>
@@ -130,13 +137,14 @@ function ActivityBlock({
     )
   }
 
-  if (editable && onEdit) {
+  const handleClick = onEdit ?? onSelect
+  if (handleClick) {
     return (
       <div className="appointment-block-wrap" style={style}>
         <button
           type="button"
           className={blockClass}
-          onClick={() => onEdit(activity)}
+          onClick={() => handleClick(activity)}
         >
           {content}
         </button>
@@ -159,6 +167,8 @@ function DayColumn({
   allDayActivities,
   editable,
   onActivityEdit,
+  onActivitySelect,
+  isReserved,
   onCreateSlot,
   onMoveOccurrence,
   onScheduleConflict,
@@ -171,6 +181,8 @@ function DayColumn({
   allDayActivities: Activity[]
   editable?: boolean
   onActivityEdit?: (activity: Activity) => void
+  onActivitySelect?: (activity: Activity) => void
+  isReserved?: (activity: Activity) => boolean
   onCreateSlot?: (dateIso: string, startMin: number, endMin: number) => void
   onMoveOccurrence?: (
     activity: Activity,
@@ -286,9 +298,11 @@ function DayColumn({
             activity={activity}
             editable={editable}
             onEdit={onActivityEdit}
+            onSelect={onActivitySelect}
             onMove={editable && onMoveOccurrence ? beginDrag : undefined}
             compactWeek={compactWeek}
             draggingHidden={draggingKey === activityKey(activity)}
+            reserved={isReserved?.(activity) === true}
           />
         ))}
         {dragPreview && dragActivity && (
@@ -316,6 +330,8 @@ export default function ActivityTimeline({
   anchor,
   editable = false,
   onActivityEdit,
+  onActivitySelect,
+  isReserved,
   onCreateSlot,
   onMoveOccurrence,
   onScheduleConflict,
@@ -381,27 +397,27 @@ export default function ActivityTimeline({
                 </span>
                 {hasAllDay && (
                   <div className="activity-all-day-strip">
-                    {allDay.map((activity) => (
-                      editable && onActivityEdit ? (
+                    {allDay.map((activity) => {
+                      const reserved = isReserved?.(activity) === true
+                      const bannerClass = `activity-all-day-banner${isActivityFull(activity) ? ' activity-all-day-banner--full' : ''}${activity.occurrenceCancelled ? ' activity-all-day-banner--cancelled' : ''}${reserved ? ' activity-all-day-banner--reserved' : ''}`
+                      const click = onActivityEdit ?? onActivitySelect
+                      return click ? (
                         <button
                           key={activityKey(activity)}
                           type="button"
-                          className={`activity-all-day-banner${isActivityFull(activity) ? ' activity-all-day-banner--full' : ''}${activity.occurrenceCancelled ? ' activity-all-day-banner--cancelled' : ''}`}
-                          onClick={() => onActivityEdit(activity)}
+                          className={bannerClass}
+                          onClick={() => click(activity)}
                         >
                           <span className="activity-all-day-banner-name">{activity.name}</span>
                           <ActivityCapacityDisplay activity={activity} compact />
                         </button>
                       ) : (
-                        <span
-                          key={activityKey(activity)}
-                          className={`activity-all-day-banner${isActivityFull(activity) ? ' activity-all-day-banner--full' : ''}${activity.occurrenceCancelled ? ' activity-all-day-banner--cancelled' : ''}`}
-                        >
+                        <span key={activityKey(activity)} className={bannerClass}>
                           <span className="activity-all-day-banner-name">{activity.name}</span>
                           <ActivityCapacityDisplay activity={activity} compact />
                         </span>
                       )
-                    ))}
+                    })}
                   </div>
                 )}
               </div>
@@ -431,6 +447,8 @@ export default function ActivityTimeline({
                   allDayActivities={allDayActivitiesForDay(activities, day)}
                   editable={editable}
                   onActivityEdit={onActivityEdit}
+                  onActivitySelect={onActivitySelect}
+                  isReserved={isReserved}
                   onCreateSlot={onCreateSlot}
                   onMoveOccurrence={onMoveOccurrence}
                   onScheduleConflict={onScheduleConflict}

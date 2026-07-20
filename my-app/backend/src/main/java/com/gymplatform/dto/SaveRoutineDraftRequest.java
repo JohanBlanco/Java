@@ -1,6 +1,8 @@
 package com.gymplatform.dto;
 
+import com.gymplatform.domain.enums.RoutineValidityUnit;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import java.util.List;
 
@@ -11,5 +13,7 @@ public record SaveRoutineDraftRequest(
         String notes,
         Integer daysPerWeek,
         boolean temporary,
+        @Min(1) Integer validityAmount,
+        RoutineValidityUnit validityUnit,
         @Valid List<SaveRoutineDraftDayRequest> days
 ) {}

@@ -30,6 +30,16 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 
     long countByActivityIdAndOccurrenceDateAndStatus(Long activityId, LocalDate occurrenceDate, ReservationStatus status);
 
+    @Query("""
+            SELECT r.activity.id, COUNT(r.id)
+            FROM Reservation r
+            WHERE r.activity IS NOT NULL
+              AND r.activity.organization.id = :orgId
+              AND r.status = com.gymplatform.domain.enums.ReservationStatus.CONFIRMED
+            GROUP BY r.activity.id
+            """)
+    List<Object[]> countConfirmedGroupedByActivity(@Param("orgId") Long organizationId);
+
     long countByMemberIdAndFreeSlotTrueAndStatusAndCreatedAtGreaterThanEqual(
 
             Long memberId, ReservationStatus status, Instant since);

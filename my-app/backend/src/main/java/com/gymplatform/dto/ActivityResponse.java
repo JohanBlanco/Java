@@ -9,6 +9,7 @@ public record ActivityResponse(
         Long id,
         String name,
         String description,
+        String imageUrl,
         LocalDate activityDate,
         LocalDate startDate,
         LocalDate endDate,

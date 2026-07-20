@@ -34,5 +34,12 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     boolean existsByOrganizationIdAndCodePrefixIgnoreCaseAndActiveTrueAndIdNot(Long organizationId, String codePrefix, Long id);
 
+    @Query("""
+            select distinct p from Product p
+            left join fetch p.categories
+            where p.id in :ids
+            """)
+    List<Product> findByIdsWithCategories(@Param("ids") Collection<Long> ids);
+
     long countByOrganizationIdAndActiveTrue(Long organizationId);
 }

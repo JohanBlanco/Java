@@ -3,6 +3,7 @@ package com.gymplatform.service;
 import com.gymplatform.domain.entity.*;
 import com.gymplatform.domain.enums.Role;
 import com.gymplatform.domain.enums.RoutineRequestStatus;
+import com.gymplatform.domain.enums.RoutineValidityUnit;
 import com.gymplatform.dto.*;
 import com.gymplatform.exception.BusinessException;
 import com.gymplatform.exception.ResourceNotFoundException;
@@ -10,6 +11,7 @@ import com.gymplatform.repository.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -106,7 +108,8 @@ public class RoutineService {
                 .orElseThrow(() -> new ResourceNotFoundException("Miembro no encontrado"));
 
         Routine routine = buildRoutine(org, instructor, member, request.name(), request.description(),
-                request.notes(), request.temporary(), request.daysPerWeek());
+                request.notes(), request.temporary(), request.daysPerWeek(),
+                request.validityAmount(), request.validityUnit());
 
         if (request.templateId() != null) {
             RoutineTemplate template = templateRepository.findById(request.templateId())
@@ -127,6 +130,7 @@ public class RoutineService {
             addExercisesToRoutine(routine, request.exercises());
         }
 
+        deactivatePreviousRoutines(member.getId());
         Routine saved = routineRepository.save(routine);
         if (linkedRequest != null) {
             completeRequest(linkedRequest, instructor, saved);
@@ -149,14 +153,18 @@ public class RoutineService {
         Routine saved;
         if (draft != null) {
             applyRoutineContent(draft, request.name(), request.description(), request.notes(),
-                    request.temporary(), request.daysPerWeek(), request.days());
+                    request.temporary(), request.daysPerWeek(), request.days(),
+                    request.validityAmount(), request.validityUnit());
             draft.setActive(true);
             draft.setInstructor(routineInstructor);
+            deactivatePreviousRoutines(routineRequest.getMember().getId(), draft.getId());
             saved = routineRepository.save(draft);
         } else {
             Routine routine = buildRoutine(org, routineInstructor, routineRequest.getMember(), request.name(),
-                    request.description(), request.notes(), request.temporary(), request.daysPerWeek());
+                    request.description(), request.notes(), request.temporary(), request.daysPerWeek(),
+                    request.validityAmount(), request.validityUnit());
             addDaysToRoutine(routine, request.days());
+            deactivatePreviousRoutines(routineRequest.getMember().getId());
             saved = routineRepository.save(routine);
         }
         completeRequest(routineRequest, fulfiller, saved);
@@ -182,12 +190,14 @@ public class RoutineService {
         Routine draft = draftRoutineOf(routineRequest);
         if (draft != null) {
             applyRoutineContent(draft, request.name(), request.description(), request.notes(),
-                    request.temporary(), request.daysPerWeek(), days);
+                    request.temporary(), request.daysPerWeek(), days,
+                    request.validityAmount(), request.validityUnit());
             draft.setInstructor(routineInstructor);
             routineRepository.save(draft);
         } else {
             Routine routine = buildRoutine(org, routineInstructor, routineRequest.getMember(), request.name(),
-                    request.description(), request.notes(), request.temporary(), request.daysPerWeek());
+                    request.description(), request.notes(), request.temporary(), request.daysPerWeek(),
+                    request.validityAmount(), request.validityUnit());
             routine.setActive(false);
             addDaysToRoutine(routine, days);
             draft = routineRepository.save(routine);
@@ -226,10 +236,12 @@ public class RoutineService {
                     .orElseThrow(() -> new ResourceNotFoundException("Miembro no encontrado: " + memberId));
 
             Routine routine = buildRoutine(org, instructor, member, template.getName(),
-                    template.getDescription(), template.getGoal(), false, template.getDaysPerWeek());
+                    template.getDescription(), template.getGoal(), false, template.getDaysPerWeek(),
+                    request.validityAmount(), request.validityUnit());
             routine.setTemplate(template);
             copyFromTemplate(routine, template);
 
+            deactivatePreviousRoutines(member.getId());
             results.add(toRoutineResponse(routineRepository.save(routine)));
         }
         return results;
@@ -237,11 +249,11 @@ public class RoutineService {
 
     @Transactional
     public RoutineResponse assignTemplateToRequest(Long organizationId, Long instructorId, Long requestId,
-                                                   Long templateId) {
+                                                   AssignRequestTemplateRequest request) {
         RoutineRequest routineRequest = requireOpenRequest(organizationId, requestId);
         discardInactiveDraft(routineRequest);
 
-        RoutineTemplate template = templateRepository.findById(templateId)
+        RoutineTemplate template = templateRepository.findById(request.templateId())
                 .orElseThrow(() -> new ResourceNotFoundException("Plantilla no encontrada"));
         Organization org = organizationRepository.findById(organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Organización no encontrada"));
@@ -250,10 +262,12 @@ public class RoutineService {
 
         User routineInstructor = resolveRoutineInstructor(routineRequest, fulfiller);
         Routine routine = buildRoutine(org, routineInstructor, routineRequest.getMember(), template.getName(),
-                template.getDescription(), template.getGoal(), false, template.getDaysPerWeek());
+                template.getDescription(), template.getGoal(), false, template.getDaysPerWeek(),
+                request.validityAmount(), request.validityUnit());
         routine.setTemplate(template);
         copyFromTemplate(routine, template);
 
+        deactivatePreviousRoutines(routineRequest.getMember().getId());
         Routine saved = routineRepository.save(routine);
         completeRequest(routineRequest, fulfiller, saved);
         return toRoutineResponse(saved);
@@ -284,6 +298,13 @@ public class RoutineService {
                 .orElseThrow(() -> new ResourceNotFoundException("Organización no encontrada"));
         User member = userRepository.findById(memberId)
                 .orElseThrow(() -> new ResourceNotFoundException("Miembro no encontrado"));
+
+        if (requestRepository.existsByMemberIdAndStatusIn(
+                memberId, List.of(RoutineRequestStatus.PENDING, RoutineRequestStatus.IN_PROGRESS))) {
+            throw new BusinessException(
+                    "Ya tienes una solicitud de rutina abierta. Espera a que te asignen una antes de pedir otra.");
+        }
+
         User preferredInstructor = request.preferredInstructorId() != null
                 ? requirePreferredInstructor(organizationId, request.preferredInstructorId())
                 : null;
@@ -310,11 +331,28 @@ public class RoutineService {
     }
 
     @Transactional(readOnly = true)
+    public List<RoutineRequestResponse> findRequestsByMember(Long memberId) {
+        return requestRepository.findByMemberIdOrderByCreatedAtDesc(memberId)
+                .stream().map(this::toRequestResponse).toList();
+    }
+
+    @Transactional(readOnly = true)
     public List<RoutineRequestResponse> findRequestsAssignedToInstructor(Long organizationId, Long instructorId) {
-        return requestRepository.findByOrganizationIdAndPreferredInstructorIdOrderByCreatedAtDesc(
-                        organizationId, instructorId)
-                .stream()
+        List<RoutineRequest> preferred = requestRepository
+                .findByOrganizationIdAndPreferredInstructorIdOrderByCreatedAtDesc(organizationId, instructorId);
+        List<RoutineRequest> assigned = requestRepository
+                .findByOrganizationIdAndAssignedInstructorIdOrderByCreatedAtDesc(organizationId, instructorId);
+
+        java.util.LinkedHashMap<Long, RoutineRequest> byId = new java.util.LinkedHashMap<>();
+        for (RoutineRequest r : preferred) {
+            byId.put(r.getId(), r);
+        }
+        for (RoutineRequest r : assigned) {
+            byId.putIfAbsent(r.getId(), r);
+        }
+        return byId.values().stream()
                 .filter(r -> r.getStatus() != RoutineRequestStatus.REJECTED)
+                .sorted(Comparator.comparing(RoutineRequest::getCreatedAt).reversed())
                 .map(this::toRequestResponse)
                 .toList();
     }
@@ -337,7 +375,8 @@ public class RoutineService {
     }
 
     private Routine buildRoutine(Organization org, User instructor, User member, String name,
-                                 String description, String notes, boolean temporary, Integer daysPerWeek) {
+                                 String description, String notes, boolean temporary, Integer daysPerWeek,
+                                 Integer validityAmount, RoutineValidityUnit validityUnit) {
         Routine routine = new Routine();
         routine.setName(name);
         routine.setDescription(description);
@@ -347,7 +386,41 @@ public class RoutineService {
         routine.setOrganization(org);
         routine.setTemporary(temporary);
         routine.setDaysPerWeek(daysPerWeek);
+        applyValidity(routine, validityAmount, validityUnit);
         return routine;
+    }
+
+    private void applyValidity(Routine routine, Integer validityAmount, RoutineValidityUnit validityUnit) {
+        if (validityAmount == null || validityUnit == null) {
+            return;
+        }
+        if (validityAmount < 1) {
+            throw new BusinessException("La vigencia debe ser al menos 1");
+        }
+        LocalDate from = LocalDate.now();
+        LocalDate until = switch (validityUnit) {
+            case DAYS -> from.plusDays(validityAmount - 1L);
+            case WEEKS -> from.plusWeeks(validityAmount).minusDays(1);
+            case MONTHS -> from.plusMonths(validityAmount).minusDays(1);
+        };
+        routine.setValidFrom(from);
+        routine.setValidUntil(until);
+        routine.setValidityAmount(validityAmount);
+        routine.setValidityUnit(validityUnit);
+    }
+
+    private void deactivatePreviousRoutines(Long memberId) {
+        deactivatePreviousRoutines(memberId, null);
+    }
+
+    private void deactivatePreviousRoutines(Long memberId, Long keepRoutineId) {
+        List<Routine> active = routineRepository.findByMemberIdAndActiveTrue(memberId);
+        for (Routine previous : active) {
+            if (keepRoutineId != null && previous.getId().equals(keepRoutineId)) {
+                continue;
+            }
+            previous.setActive(false);
+        }
     }
 
     private RoutineTemplate requireTemplate(Long organizationId, Long templateId) {
@@ -432,12 +505,14 @@ public class RoutineService {
     }
 
     private void applyRoutineContent(Routine routine, String name, String description, String notes,
-                                     boolean temporary, Integer daysPerWeek, List<RoutineDayRequest> days) {
+                                     boolean temporary, Integer daysPerWeek, List<RoutineDayRequest> days,
+                                     Integer validityAmount, RoutineValidityUnit validityUnit) {
         routine.setName(name);
         routine.setDescription(description);
         routine.setNotes(notes);
         routine.setTemporary(temporary);
         routine.setDaysPerWeek(daysPerWeek);
+        applyValidity(routine, validityAmount, validityUnit);
         routine.getDays().clear();
         routine.getExercises().clear();
         if (days != null && !days.isEmpty()) {
@@ -635,9 +710,19 @@ public class RoutineService {
                 routine.getTemplate() != null ? routine.getTemplate().getId() : null,
                 routine.isTemporary(),
                 routine.getDaysPerWeek(),
+                routine.getValidFrom(),
+                routine.getValidUntil(),
+                routine.getValidityAmount(),
+                routine.getValidityUnit(),
+                isRoutineExpired(routine),
                 days,
                 flatExercises
         );
+    }
+
+    private boolean isRoutineExpired(Routine routine) {
+        LocalDate until = routine.getValidUntil();
+        return until != null && until.isBefore(LocalDate.now());
     }
 
     private RoutineDayResponse toDayResponse(RoutineDay day) {

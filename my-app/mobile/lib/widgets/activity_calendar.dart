@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/date_format.dart';
 
 enum CalendarView { day, week, month, year }
 
@@ -231,7 +232,7 @@ class _ActivityCalendarState extends State<ActivityCalendar> {
               ),
             ],
           ),
-          Text('${map['startTime']} · ${map['locationName'] ?? ''}', style: const TextStyle(fontSize: 11)),
+          Text('${AppDateFormat.formatTime(map['startTime'] as String?)} · ${map['locationName'] ?? ''}', style: const TextStyle(fontSize: 11)),
         ],
       ),
     );

@@ -24,6 +24,8 @@ public record UserCreateRequest(
         @NotBlank String nationalId,
         @Schema(description = "Número local de WhatsApp (8 dígitos, Costa Rica).")
         String whatsappPhone,
-        @Schema(description = "Si true (por defecto), envía el formulario de registro del miembro por WhatsApp al crear.")
-        Boolean sendRegistrationForm
+        @Schema(description = "Si true (por defecto), incluye el formulario de registro en los mensajes WhatsApp al crear.")
+        Boolean sendRegistrationForm,
+        @Schema(description = "IDs de plantillas de difusión a enviar (p. ej. bienvenida del plan). Orden: bienvenida primero si está incluida.")
+        List<Long> broadcastTemplateIds
 ) {}

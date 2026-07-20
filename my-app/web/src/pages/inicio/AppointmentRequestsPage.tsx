@@ -1,5 +1,5 @@
-import AppointmentsCalendarSection from '../../components/AppointmentsCalendarSection'
+import MemberAppointmentsPage from './MemberAppointmentsPage'
 
 export default function AppointmentRequestsPage() {
-  return <AppointmentsCalendarSection mode="member" />
+  return <MemberAppointmentsPage />
 }

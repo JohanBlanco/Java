@@ -20,6 +20,7 @@ import com.gymplatform.exception.ResourceNotFoundException;
 import com.gymplatform.repository.ActivityOccurrenceCancellationRepository;
 import com.gymplatform.repository.ActivityOccurrenceExclusionRepository;
 import com.gymplatform.repository.ActivityOccurrenceOverrideRepository;
+import com.gymplatform.repository.ActivityPromotionRepository;
 import com.gymplatform.repository.ActivityRepository;
 import com.gymplatform.repository.OrganizationRepository;
 import com.gymplatform.repository.ReservationRepository;
@@ -54,6 +55,7 @@ public class ActivityService {
     private final ActivityOccurrenceOverrideRepository overrideRepository;
     private final ActivityOccurrenceCancellationRepository cancellationRepository;
     private final ActivityOccurrenceExclusionRepository exclusionRepository;
+    private final ActivityPromotionRepository promotionRepository;
 
     public ActivityService(ActivityRepository activityRepository,
                            OrganizationRepository organizationRepository,
@@ -61,7 +63,8 @@ public class ActivityService {
                            ReservationRepository reservationRepository,
                            ActivityOccurrenceOverrideRepository overrideRepository,
                            ActivityOccurrenceCancellationRepository cancellationRepository,
-                           ActivityOccurrenceExclusionRepository exclusionRepository) {
+                           ActivityOccurrenceExclusionRepository exclusionRepository,
+                           ActivityPromotionRepository promotionRepository) {
         this.activityRepository = activityRepository;
         this.organizationRepository = organizationRepository;
         this.userRepository = userRepository;
@@ -69,6 +72,7 @@ public class ActivityService {
         this.overrideRepository = overrideRepository;
         this.cancellationRepository = cancellationRepository;
         this.exclusionRepository = exclusionRepository;
+        this.promotionRepository = promotionRepository;
     }
 
     @Transactional
@@ -384,8 +388,8 @@ public class ActivityService {
 
     @Transactional
     public int purgeAllExpiredActivities() {
-        LocalDate today = LocalDate.now();
-        List<Activity> expired = activityRepository.findAllExpired(today);
+        LocalDate retentionCutoff = LocalDate.now().minusMonths(1);
+        List<Activity> expired = activityRepository.findAllExpired(retentionCutoff);
         for (Activity activity : expired) {
             purgeActivity(activity);
         }
@@ -393,8 +397,8 @@ public class ActivityService {
     }
 
     private int purgeExpiredForOrganization(Long organizationId) {
-        LocalDate today = LocalDate.now();
-        List<Activity> expired = activityRepository.findExpiredByOrganization(organizationId, today);
+        LocalDate retentionCutoff = LocalDate.now().minusMonths(1);
+        List<Activity> expired = activityRepository.findExpiredByOrganization(organizationId, retentionCutoff);
         for (Activity activity : expired) {
             purgeActivity(activity);
         }
@@ -403,6 +407,7 @@ public class ActivityService {
 
     private void purgeActivity(Activity activity) {
         Long activityId = activity.getId();
+        promotionRepository.deleteByActivityId(activityId);
         reservationRepository.deleteByActivityId(activityId);
         overrideRepository.deleteByActivityId(activityId);
         cancellationRepository.deleteByActivityId(activityId);
@@ -454,6 +459,7 @@ public class ActivityService {
         return new ActivityRequest(
                 activity.getName(),
                 activity.getDescription(),
+                activity.getImageUrl(),
                 activity.getStartDate(),
                 activity.getEndDate(),
                 request.startTime(),
@@ -588,6 +594,10 @@ public class ActivityService {
 
         activity.setName(request.name());
         activity.setDescription(request.description());
+        if (request.imageUrl() != null) {
+            String url = request.imageUrl().trim();
+            activity.setImageUrl(url.isBlank() ? null : url);
+        }
         activity.setStartDate(request.startDate());
         activity.setStartTime(request.startTime());
         activity.setEndTime(request.endTime());
@@ -668,6 +678,7 @@ public class ActivityService {
                 activity.getId(),
                 activity.getName(),
                 activity.getDescription(),
+                activity.getImageUrl(),
                 displayDate,
                 activity.getStartDate(),
                 activity.getEndDate(),

@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import type { Activity } from '../types'
 import ActivityCapacityDisplay from './ActivityCapacityDisplay'
 import { useFilteredList } from '../hooks/useFilteredList'
+import { useDateFormat } from '../preferences/useDateFormat'
 import { toIsoDate } from '../utils/calendarUtils'
 
 type Props = {
@@ -9,6 +10,7 @@ type Props = {
 }
 
 export default function TodayActivitiesList({ activities }: Props) {
+  const { formatTimeRange } = useDateFormat()
   const todayIso = toIsoDate(new Date())
   const todayActivities = useMemo(
     () => activities.filter((a) => a.activityDate === todayIso),
@@ -28,7 +30,7 @@ export default function TodayActivitiesList({ activities }: Props) {
         <div key={`${a.id}-${a.activityDate}`} className="card">
           <h3>{a.name}</h3>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-            {a.startTime?.slice(0, 5)} – {a.endTime?.slice(0, 5)} · {a.locationName}
+            {formatTimeRange(a.startTime, a.endTime)} · {a.locationName}
           </p>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
             <ActivityCapacityDisplay activity={a} />

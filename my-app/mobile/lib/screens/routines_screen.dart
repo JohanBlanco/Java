@@ -30,22 +30,71 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
       final requests = await api.getRoutineRequests();
       if (mounted) setState(() { _requests = requests; _loading = false; });
     } else {
-      final routines = await api.getMyRoutines();
-      if (mounted) setState(() { _routines = routines; _loading = false; });
+      final results = await Future.wait([
+        api.getMyRoutines(),
+        api.getRoutineRequests(),
+      ]);
+      if (mounted) {
+        setState(() {
+          _routines = results[0];
+          _requests = results[1];
+          _loading = false;
+        });
+      }
     }
   }
 
+  bool get _hasOpenRequest {
+    return _requests.any((r) {
+      final status = (r['status'] as String?) ?? '';
+      return status == 'PENDING' || status == 'IN_PROGRESS';
+    });
+  }
+
+  Map<String, dynamic>? get _openRequest {
+    for (final r in _requests) {
+      final status = (r['status'] as String?) ?? '';
+      if (status == 'PENDING' || status == 'IN_PROGRESS') {
+        return Map<String, dynamic>.from(r as Map);
+      }
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? get _currentRoutine {
+    if (_routines.isEmpty) return null;
+    final sorted = [..._routines]
+      ..sort((a, b) => ((b['id'] as num?) ?? 0).compareTo((a['id'] as num?) ?? 0));
+    return Map<String, dynamic>.from(sorted.first as Map);
+  }
+
   Future<void> _requestRoutine() async {
+    if (_hasOpenRequest) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ya tienes una solicitud abierta')),
+        );
+      }
+      return;
+    }
     final api = context.read<AuthProvider>().api;
-    await api.createRoutineRequest(
-      'Necesito una rutina personalizada',
-      'Mejorar fuerza y resistencia',
-    );
-    _load();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Solicitud enviada')),
+    try {
+      await api.createRoutineRequest(
+        'Necesito una rutina personalizada',
+        'Mejorar fuerza y resistencia',
       );
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Solicitud enviada')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$e')),
+        );
+      }
     }
   }
 
@@ -60,71 +109,110 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
   }
 
   Widget _buildMemberView() {
-    if (_routines.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text('No tienes rutinas asignadas'),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: _requestRoutine,
-              child: const Text('Solicitar rutina'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    final filtered = filterByQuery(_routines, _filterQuery);
+    final routine = _currentRoutine;
+    final expired = routine?['expired'] == true;
+    final canRequest = !_hasOpenRequest;
+    final open = _openRequest;
 
     return RefreshIndicator(
       onRefresh: _load,
-      child: ListView.builder(
+      child: ListView(
         padding: const EdgeInsets.all(16),
-        itemCount: filtered.isEmpty ? 2 : filtered.length + 1,
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return ListFilterField(
-              onChanged: (v) => setState(() => _filterQuery = v),
-              resultCount: filtered.length,
-              totalCount: _routines.length,
-            );
-          }
-          if (filtered.isEmpty) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Center(child: Text('Ningún resultado coincide con la búsqueda')),
-            );
-          }
-
-          final r = filtered[index - 1];
-          final exercises = r['exercises'] as List<dynamic>? ?? [];
-
-          return Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            child: ExpansionTile(
-              title: Text(r['name']),
-              subtitle: Text('Instructor: ${r['instructorName']}${r['temporary'] == true ? ' (Temporal)' : ''}'),
-              children: exercises.map<Widget>((ex) {
-                return ListTile(
-                  dense: true,
-                  title: Text(ex['exerciseName']),
-                  trailing: Text('${ex['sets']}x${ex['reps']}'),
-                );
-              }).toList(),
+        children: [
+          if (expired && canRequest)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Tu rutina ya no está vigente', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Venció${routine?['validUntil'] != null ? ' el ${routine!['validUntil']}' : ''}. Solicita una nueva.',
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton(
+                      onPressed: _requestRoutine,
+                      child: const Text('Solicitar rutina'),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          );
-        },
+          if (open != null)
+            Card(
+              child: ListTile(
+                title: Text(open['description']?.toString() ?? 'Solicitud abierta'),
+                subtitle: const Text('Solo una solicitud abierta a la vez. Cuando te asignen la rutina podrás pedir otra.'),
+                trailing: Text(open['status']?.toString() ?? ''),
+              ),
+            ),
+          if (routine != null) ...[
+            Card(
+              child: ExpansionTile(
+                title: Text(routine['name']?.toString() ?? 'Rutina'),
+                subtitle: Text(
+                  [
+                    if (routine['instructorName'] != null) 'Instructor: ${routine['instructorName']}',
+                    if (expired)
+                      'Vencida'
+                    else if (routine['validUntil'] != null)
+                      'Vigente hasta ${routine['validUntil']}',
+                  ].join(' · '),
+                ),
+                children: ((routine['days'] as List?) ?? []).isNotEmpty
+                    ? (routine['days'] as List).expand<Widget>((day) {
+                        final exercises = day['exercises'] as List? ?? [];
+                        return [
+                          ListTile(
+                            dense: true,
+                            title: Text(day['dayLabel']?.toString() ?? 'Día', style: const TextStyle(fontWeight: FontWeight.w600)),
+                          ),
+                          ...exercises.map((ex) => ListTile(
+                                dense: true,
+                                title: Text(ex['exerciseName']?.toString() ?? ''),
+                                trailing: Text('${ex['sets']}x${ex['reps']}'),
+                              )),
+                        ];
+                      }).toList()
+                    : ((routine['exercises'] as List?) ?? []).map<Widget>((ex) {
+                        return ListTile(
+                          dense: true,
+                          title: Text(ex['exerciseName']?.toString() ?? ''),
+                          trailing: Text('${ex['sets']}x${ex['reps']}'),
+                        );
+                      }).toList(),
+              ),
+            ),
+            if (canRequest && !expired)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: OutlinedButton(
+                  onPressed: _requestRoutine,
+                  child: const Text('Solicitar otra rutina'),
+                ),
+              ),
+          ] else if (canRequest)
+            Center(
+              child: Column(
+                children: [
+                  const SizedBox(height: 48),
+                  const Text('No tienes una rutina asignada'),
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    onPressed: _requestRoutine,
+                    child: const Text('Solicitar rutina'),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }
 
   Widget _buildStaffView() {
-    if (_requests.isEmpty) {
-      return const Center(child: Text('Sin solicitudes de rutina'));
-    }
-
     final filtered = filterByQuery(_requests, _filterQuery);
 
     return RefreshIndicator(
@@ -148,37 +236,20 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
           }
 
           final r = filtered[index - 1];
-
           return Card(
             margin: const EdgeInsets.only(bottom: 12),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(r['memberName'], style: Theme.of(context).textTheme.titleMedium),
-                      Chip(label: Text(r['status'])),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(r['description']),
-                  Text('Objetivos: ${r['goals']}', style: Theme.of(context).textTheme.bodySmall),
-                  if (r['status'] == 'PENDING') ...[
-                    const SizedBox(height: 12),
-                    FilledButton(
-                      onPressed: () async {
-                        await context.read<AuthProvider>().api
-                            .updateRoutineRequestStatus(r['id'], 'IN_PROGRESS');
-                        _load();
-                      },
-                      child: const Text('Tomar solicitud'),
-                    ),
-                  ],
-                ],
-              ),
+            child: ListTile(
+              title: Text(r['memberName'] ?? ''),
+              subtitle: Text('${r['description']}\n${r['goals']}'),
+              isThreeLine: true,
+              trailing: Text(r['status'] ?? ''),
+              onTap: () async {
+                await context
+                    .read<AuthProvider>()
+                    .api
+                    .updateRoutineRequestStatus(r['id'], 'IN_PROGRESS');
+                _load();
+              },
             ),
           );
         },

@@ -29,6 +29,17 @@ function persistActiveRole(userId: number, role: string) {
 function clearStoredSession() {
   localStorage.removeItem('token')
   localStorage.removeItem('user')
+  // Cerrar también desbloqueos de áreas privadas
+  try {
+    const keys: string[] = []
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const k = sessionStorage.key(i)
+      if (k?.startsWith('statsUnlock:')) keys.push(k)
+    }
+    keys.forEach((k) => sessionStorage.removeItem(k))
+  } catch {
+    // ignore
+  }
 }
 
 function redirectToLogin(expired = false) {

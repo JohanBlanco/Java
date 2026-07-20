@@ -36,6 +36,7 @@ import { isAppointmentOnCalendar } from '../utils/appointmentUtils'
 import { findContiguousAvailabilityRange } from '../utils/availabilityUtils'
 
 import { addDays, parseDate, toIsoDate } from '../utils/calendarUtils'
+import { formatTimeRangeLabel } from '../utils/dateFormat'
 
 
 
@@ -1247,7 +1248,7 @@ export default function AppointmentsCalendarSection({ mode }: Props) {
 
             <p className="availability-slot-action-time">
 
-              {reactivateSlot.startTime} – {reactivateSlot.endTime}
+              {formatTimeRangeLabel(reactivateSlot.startTime, reactivateSlot.endTime)}
 
             </p>
 

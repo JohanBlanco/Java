@@ -38,6 +38,22 @@ export interface MemberProfile {
   nationalId?: string | null
 }
 
+export interface GymOrganization {
+  id: number
+  name: string
+  slug: string
+  contactEmail: string | null
+  contactPhone: string | null
+  address: string | null
+  city: string | null
+  tagline: string | null
+  businessHours: string | null
+  websiteUrl: string | null
+  socialHandle: string | null
+  accentId: string
+  seasonTheme?: string
+}
+
 export interface Organization {
   id: number
   name: string
@@ -111,6 +127,11 @@ export interface Product {
   priceAddons?: PriceAddon[]
   packagePriceWithAddons?: number
   unitPriceWithAddons?: number
+  offerActive?: boolean
+  offerPercent?: number | null
+  offerBadge?: string | null
+  offerFrom?: string | null
+  offerUntil?: string | null
 }
 
 export interface ProductImageSuggestion {
@@ -196,6 +217,9 @@ export interface StoreSale {
   cashAmount?: number
   payments?: StoreSalePayment[]
   items: StoreSaleItem[]
+  voided?: boolean
+  /** true si la caja del movimiento sigue abierta */
+  deletable?: boolean
 }
 
 export interface StoreSalesSummary {
@@ -222,6 +246,7 @@ export interface Activity {
   id: number
   name: string
   description: string
+  imageUrl?: string | null
   activityDate: string
   startDate: string
   endDate: string
@@ -239,6 +264,22 @@ export interface Activity {
   allDay: boolean
   active: boolean
   occurrenceCancelled: boolean
+}
+
+export interface ActivityPromotion {
+  slotIndex: number
+  populated: boolean
+  manual: boolean
+  activityId: number | null
+  name: string | null
+  description: string | null
+  imageUrl: string | null
+  nextOccurrenceDate: string | null
+  startTime: string | null
+  endTime: string | null
+  locationName: string | null
+  instructorName: string | null
+  reservationCount: number
 }
 
 export interface MembershipUsage {
@@ -307,7 +348,14 @@ export interface FormField {
   visibilityValue?: string | null
 }
 
-export type FormPurpose = 'MEMBER_REGISTRATION' | 'CUSTOM'
+export type FormPurpose = 'MEMBER_REGISTRATION' | 'MEMBER_SIGNUP' | 'MEMBER_ONBOARDING' | 'CUSTOM'
+
+export const FORM_PURPOSE_LABELS: Record<FormPurpose, string> = {
+  MEMBER_REGISTRATION: 'Registro (expediente)',
+  MEMBER_SIGNUP: 'Alta de usuario',
+  MEMBER_ONBOARDING: 'Alta + registro',
+  CUSTOM: 'Personalizado',
+}
 
 export interface CustomForm {
   id: number
@@ -440,20 +488,66 @@ export interface PublicForm {
   slug: string
   description: string | null
   accessType: FormAccessType
+  formPurpose?: FormPurpose
+  createsUser?: boolean
   requiresAuth: boolean
   organizationName: string
   organizationSlug: string
   fields: FormField[]
+  membershipPackages?: Array<{ id: number; name: string }>
+}
+
+export interface FormSubmissionResult {
+  id: number
+  createdAt: string
+  userCreated?: boolean
+  createdUserId?: number | null
+  message?: string | null
 }
 
 export interface UserCreateResponse {
   user: User
   registrationFormWhatsappUrl: string | null
+  registrationFormDeliveryMode?: WhatsAppDeliveryMode | string | null
+  registrationFormCloudMessageId?: string | null
+  whatsappMessagePreviews?: string[]
 }
 
+export type WhatsAppDeliveryMode = 'WA_ME' | 'CLOUD_API'
+
 export interface WhatsappOutboundResponse {
-  whatsappUrl: string
+  whatsappUrl: string | null
   messagePreview: string
+  deliveryMode?: WhatsAppDeliveryMode | string
+  cloudMessageId?: string | null
+}
+
+export interface WhatsappMessagesOutboundResponse {
+  whatsappUrl: string | null
+  messagePreviews: string[]
+  deliveryMode?: WhatsAppDeliveryMode | string
+  cloudMessageId?: string | null
+}
+
+export interface WhatsappBulkMessagesOutboundResponse {
+  recipientCount: number
+  sentCount: number
+  failedCount: number
+  deliveryMode?: WhatsAppDeliveryMode | string
+  errors: string[]
+}
+
+export interface EncryptedSecretPayload {
+  alg: string
+  keyId: string
+  encryptedKey: string
+  iv: string
+  ciphertext: string
+}
+
+export interface WhatsAppCloudSendResponse {
+  messageId: string | null
+  mediaId: string | null
 }
 
 export interface BroadcastChannelSettings {
@@ -461,6 +555,18 @@ export interface BroadcastChannelSettings {
   senderPhone: string | null
   enabled: boolean
   whatsappWebSessionConfirmed: boolean
+  deliveryMode: WhatsAppDeliveryMode
+  cloudApiAppId: string | null
+  cloudApiPhoneNumberId: string | null
+  cloudApiWabaId: string | null
+  cloudApiGraphVersion: string | null
+  cloudApiAccessTokenConfigured: boolean
+  cloudApiAppSecretConfigured: boolean
+  cloudApiVerifyTokenConfigured: boolean
+  cloudApiReady: boolean
+  cryptoPublicKeyPem: string
+  cryptoKeyId: string
+  cryptoAlg: string
   updatedAt: string
 }
 
@@ -470,6 +576,9 @@ export interface BroadcastMessageTemplate {
   name: string
   body: string
   purpose: BroadcastTemplatePurpose
+  membershipPackageId?: number | null
+  membershipPackageName?: string | null
+  mediaLinks?: string[]
   createdAt: string
   updatedAt: string
 }
@@ -495,6 +604,54 @@ export interface GymStats {
   attendancesThisMonth: number
 }
 
+export interface StatisticsAccess {
+  configured: boolean
+}
+
+export interface StatisticsUnlock {
+  unlockToken: string
+  expiresAt: string
+}
+
+export interface StatisticsKpis {
+  incomeTotal: number
+  expenseTotal: number
+  salesTotal: number
+  netTotal: number
+  averageTicket: number
+  saleCount: number
+  incomeChangePct: number
+  expenseChangePct: number
+  netChangePct: number
+}
+
+export interface StatisticsTimePoint {
+  key: string
+  label: string
+  income: number
+  expense: number
+  sales: number
+}
+
+export interface StatisticsNamedAmount {
+  name: string
+  amount: number
+  count: number
+}
+
+export interface StatisticsDashboard {
+  period: string
+  date: string
+  periodLabel: string
+  kpis: StatisticsKpis
+  previousKpis: StatisticsKpis
+  timeSeries: StatisticsTimePoint[]
+  byCategory: StatisticsNamedAmount[]
+  topProducts: StatisticsNamedAmount[]
+  incomeVsExpense: StatisticsNamedAmount[]
+  byPaymentMethod: StatisticsNamedAmount[]
+}
+
 export interface RoutineExercise {
   id?: number
   exerciseId?: number | null
@@ -516,6 +673,8 @@ export interface RoutineDay {
   exercises: RoutineExercise[]
 }
 
+export type RoutineValidityUnit = 'DAYS' | 'WEEKS' | 'MONTHS'
+
 export interface Routine {
   id: number
   name: string
@@ -528,6 +687,11 @@ export interface Routine {
   templateId: number | null
   temporary: boolean
   daysPerWeek?: number | null
+  validFrom?: string | null
+  validUntil?: string | null
+  validityAmount?: number | null
+  validityUnit?: RoutineValidityUnit | null
+  expired?: boolean
   days: RoutineDay[]
   exercises: RoutineExercise[]
 }

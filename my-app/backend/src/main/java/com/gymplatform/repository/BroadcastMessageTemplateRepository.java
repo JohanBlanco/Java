@@ -17,4 +17,13 @@ public interface BroadcastMessageTemplateRepository extends JpaRepository<Broadc
             Long organizationId, BroadcastChannel channel, BroadcastTemplatePurpose purpose);
 
     Optional<BroadcastMessageTemplate> findByIdAndOrganizationId(Long id, Long organizationId);
+
+    Optional<BroadcastMessageTemplate> findFirstByOrganizationIdAndChannelAndMembershipPackageIdAndPurpose(
+            Long organizationId,
+            BroadcastChannel channel,
+            Long membershipPackageId,
+            BroadcastTemplatePurpose purpose);
+
+    List<BroadcastMessageTemplate> findByOrganizationIdAndChannelAndMembershipPackageId(
+            Long organizationId, BroadcastChannel channel, Long membershipPackageId);
 }

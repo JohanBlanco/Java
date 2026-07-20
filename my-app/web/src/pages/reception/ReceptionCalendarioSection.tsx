@@ -89,40 +89,42 @@ export default function ReceptionCalendarioSection() {
   }
 
   return (
-    <div className="appointments-calendar-layout">
-      <div className="appointment-toolbar">
-        <div className="appointment-instructor-filter">
-          <label>Actividades</label>
-          <TagMultiSelect
-            options={activityNameOptions}
-            value={nameFilter}
-            onChange={setNameFilter}
-            placeholder="Escribe un nombre y pulsa Enter…"
-            noResultsMessage="Ninguna actividad coincide con la búsqueda"
-          />
+    <div className="agenda-actividades-page">
+      <div className="appointments-calendar-layout">
+        <div className="appointment-toolbar">
+          <div className="appointment-instructor-filter">
+            <label>Actividades</label>
+            <TagMultiSelect
+              options={activityNameOptions}
+              value={nameFilter}
+              onChange={setNameFilter}
+              placeholder="Escribe un nombre y pulsa Enter…"
+              noResultsMessage="Ninguna actividad coincide con la búsqueda"
+            />
+          </div>
         </div>
+
+        <ActivityCalendar
+          activities={filteredActivities}
+          editable
+          onActivityEdit={setEditing}
+          onCreateActivity={() => openCreate()}
+          onCreateSlot={(dateIso, startMin, endMin) => {
+            openCreate({
+              startDate: dateIso,
+              startTime: minutesToTimeString(startMin),
+              durationPreset: endMin - startMin <= 30 ? '30' : '60',
+            })
+          }}
+          onMoveOccurrence={handleMoveOccurrence}
+          onScheduleConflict={() => showWarning('Ese horario se solapa con otra actividad')}
+          onRangeChange={handleRangeChange}
+        />
+
+        {loading && activities.length === 0 && (
+          <p className="calendar-hint calendar-hint--overlay">Cargando actividades…</p>
+        )}
       </div>
-
-      <ActivityCalendar
-        activities={filteredActivities}
-        editable
-        onActivityEdit={setEditing}
-        onCreateActivity={() => openCreate()}
-        onCreateSlot={(dateIso, startMin, endMin) => {
-          openCreate({
-            startDate: dateIso,
-            startTime: minutesToTimeString(startMin),
-            durationPreset: endMin - startMin <= 30 ? '30' : '60',
-          })
-        }}
-        onMoveOccurrence={handleMoveOccurrence}
-        onScheduleConflict={() => showWarning('Ese horario se solapa con otra actividad')}
-        onRangeChange={handleRangeChange}
-      />
-
-      {loading && activities.length === 0 && (
-        <p className="calendar-hint calendar-hint--overlay">Cargando actividades…</p>
-      )}
 
       {showCreate && (
         <ActivityFormModal

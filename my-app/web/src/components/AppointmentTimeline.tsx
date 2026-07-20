@@ -27,6 +27,7 @@ import {
   startCalendarAppointmentMove,
 } from '../utils/appointmentCalendarDragUtils'
 import { formatTimeShort, buildAvailabilitySlots, parseTimeToMinutes, canCreateOutsideAvailabilitySlot, appointmentAlignsWithBlockGrid } from '../utils/availabilityUtils'
+import { formatTimeRangeLabel } from '../utils/dateFormat'
 import { appointmentFitsAvailabilityBlock } from '../utils/availabilitySlotDragUtils'
 import {
   getTimelineGridElements,
@@ -90,7 +91,7 @@ function appointmentKey(a: AppointmentRequest): string {
 
 function formatHourLabel(hour: number): string {
   const date = new Date(2000, 0, 1, hour, 0)
-  return date.toLocaleTimeString('en-US', { hour: 'numeric', hour12: true })
+  return date.toLocaleTimeString('es-CR', { hour: 'numeric', hour12: true })
 }
 
 function compareAppointments(a: AppointmentRequest, b: AppointmentRequest): number {
@@ -358,7 +359,9 @@ function AppointmentBlock({
             : appointmentTypeLabel(appointment.type)}
         </span>
         <span className="appointment-block-time">
-          {displayStart && displayEnd ? `${displayStart} – ${displayEnd}` : formatTimeRange(appointment.scheduledStart, appointment.scheduledEnd)}
+          {displayStart && displayEnd
+            ? formatTimeRangeLabel(displayStart, displayEnd)
+            : formatTimeRange(appointment.scheduledStart, appointment.scheduledEnd)}
         </span>
         {!compactWeek && appointment.preferredStaffName && (
           <span className="appointment-block-meta">{appointment.preferredStaffName}</span>
@@ -1014,7 +1017,10 @@ function DayColumn({
             aria-hidden
           >
             <span className="appointment-outside-create-preview-label">
-              {minutesToTimeString(hoverPreview.start)} – {minutesToTimeString(hoverPreview.end)}
+              {formatTimeRangeLabel(
+                minutesToTimeString(hoverPreview.start),
+                minutesToTimeString(hoverPreview.end),
+              )}
             </span>
           </div>
         )}
